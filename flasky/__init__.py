@@ -1,4 +1,6 @@
 
+print('LOADING FLASK')
+
 class FlaskyTornError(BaseException):
 
     def __init__(self, status_code=None, message=None):

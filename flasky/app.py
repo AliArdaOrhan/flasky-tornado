@@ -1,17 +1,17 @@
-import datetime
 import functools
 from asyncio import iscoroutinefunction, get_event_loop
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
+from tornado import options
 from tornado.log import enable_pretty_logging
 from tornado.web import Application
 from tornado.ioloop import IOLoop
-from jsonschema import Draft4Validator, FormatChecker
 
-from flasky import ConfigurationError, BadRequestError
+from flasky.errors import ConfigurationError
 from flasky.handler import DynamicHandler
-from flasky.parameter import JSONParameterResolver, JSONParam
+from flasky.parameter import JSONParameterResolver
+from flasky.schema import validate_schema
 
 
 class FlaskyApp(object):
@@ -74,6 +74,8 @@ class FlaskyApp(object):
         return f
 
     def run(self, port=8888):
+        args = options.parse_command_line()
+
         enable_pretty_logging()
         self.app = Application(default_host="0.0.0.0",**self.settings)
 
@@ -111,15 +113,10 @@ class FlaskyApp(object):
     def run_in_executor(self, func, *args):
         return self.ioloop.run_in_executor(self.executor, functools.partial(func, *args))
 
-def validate_schema(schema, data):
-    validator = Draft4Validator(
-        schema,
-        types={"datetime": datetime.datetime},
-        format_checker=FormatChecker())
+    def configuration_loader(self):
+        pass
 
-    errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
-    if errors:
-        message = ""
-        for error in errors:
-            message += str(error.message) + ", "
-        raise BadRequestError(message=message)
+    def add_handler(self):
+        pass
+
+

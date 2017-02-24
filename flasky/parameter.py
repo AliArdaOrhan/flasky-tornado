@@ -1,6 +1,6 @@
 import json
 
-from flasky import BadRequestError
+from flasky.errors import BadRequestError
 
 
 class JSONParam(object):

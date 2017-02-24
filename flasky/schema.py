@@ -3,7 +3,7 @@ import datetime
 from jsonschema import Draft4Validator
 from jsonschema import FormatChecker
 
-from flasky import BadRequestError
+from flasky.errors import BadRequestError
 
 
 def validate_schema(schema, data):
@@ -14,5 +14,7 @@ def validate_schema(schema, data):
 
     errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
     if errors:
-        print(errors)
-        raise BadRequestError(message="ERRORS.VALIDATION_ERROR")
+        message = ""
+        for error in errors:
+            message += str(error.message) + ", "
+        raise BadRequestError(message=message)

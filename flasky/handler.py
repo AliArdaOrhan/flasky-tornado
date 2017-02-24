@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import tornado.web
 
-from flasky import BadRequestError, FlaskyTornError, MethodIsNotAllowed
+from flasky.errors import BadRequestError, FlaskyTornError, MethodIsNotAllowed
 
 # noinspection PyAttributeOutsideInit,PyAbstractClass
 class DynamicHandler(tornado.web.RequestHandler):

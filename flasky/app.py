@@ -75,7 +75,7 @@ class FlaskyApp(object):
 
     def run(self, port=8888):
         enable_pretty_logging()
-        self.app = Application(**self.settings)
+        self.app = Application(default_host="0.0.0.0",**self.settings)
 
         for endpoint in self.endpoints:
             spec = self._create_dynamic_handlers(endpoint)

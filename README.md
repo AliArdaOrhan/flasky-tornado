@@ -1,16 +1,6 @@
-## Introduction To Quark-Flasky
-Thin wrapper around Tornado-Web applications for microservice applications.
-### Why A New Framework?
+## Quark-Flasky
+Tornado uygulamaları için Thin-Wrapper.
 
-[Tornado](https://github.com/tornadoweb/tornado) is a great library for creating web applications. If you do it well, tornado applications has a wonderful performance characteristics. Yet, due to its low-level nature, Most of work, especially cross-cutting concerns, must be done by developers which means a lot efforts and might be resulted in boilerplate code.
-
-Furthermore, with the new hype around microservices, we decided to build our new project with microservice architecture. It's a wild area with new problems that monolithic architectures doesn't have. One of those problems is, _sharing libraries_ between microservices. Shared libraries might include authentication, authorization, logging, monitoring, third-party clients etc. With sharing a library that solves problems above, you can focus on solving business problems instead of drowning in technical challenges.
-
-[Flask](http://flask.pocoo.org/)  is beloved micro-framework in our python community. From its initial release, it becomes one of the most popular web framework in python landspace in relatively short timespan. It powers comes from its simplicity (when you compared to django). Its unopinated, extensible by hooks and has a fairly good ecosystem.
-
-So...
-
-We decided to build a **Thin Wrapper** around Tornado Framework that provide us Flask programming model to implement our shared libraries in a **plugin fashion** across different microservice. And here is Quark-Flasky.
 
 #### Quickstart
 Minimal application of Quark-Flasky looks something like this:

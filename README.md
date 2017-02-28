@@ -36,7 +36,7 @@ Quark-Flasky applications are programmed via set of decorators.
 
 ```python
 
-'''app.ap is decorator which is used to define endpoint. DynamicHandler, positional and named arguments are passed in when endpoint is executed.
+'''app.ap is register functions which is used to define endpoint. DynamicHandler, positional and named arguments are passed in when endpoint is executed.
 
  Parameters:
     host: Virtual host parameter which takes in regex as the first argument.
@@ -58,7 +58,7 @@ async def hello_world(handler, *args, **kwargs):
 
 
 ```python
-'''``app.before_request`` is decorator which is executed before a request passed to handler. For many extensions this is the configuration point.
+'''``app.before_request`` register functions which is executed before a request passed to handler. For many extensions this is the configuration point.
 '''
 
 @app.before_request
@@ -71,7 +71,7 @@ async def check_authorization_header(handler, method_definition, *args, **kwargs
 ```
 
 ```python
-'''``app.after_request`` is decorator which is ALWAYS executed after a request passed to handler. This can be configuration point for many plugins.
+'''``app.after_request`` register functions which is ALWAYS executed after a request passed to handler. This can be configuration point for many plugins.
 '''
 
 @app.after_request
@@ -81,7 +81,8 @@ async def add_cors_headers(handler, *args, **kwargs):
 ```
 
 ```python
-'''``app.error_handler`` is decorator which is executed when a exception occurs during execution of handler chain
+
+'''``app.error_handler`` register functions which is executed when a exception occurs during execution of handler chain
 
 Parameters:
     exc_type: Exception type that will be handled. Default is None which means handler
@@ -100,6 +101,21 @@ async def my_exception_handler(handler, err):
     })
     logger.error(err)
 ```
+
+
+```python
+'''``app.after_request`` is decorator which is ALWAYS executed after a request passed to handler. This can be configuration point for many plugins.
+'''
+
+@app.after_request
+async def add_cors_headers(handler, *args, **kwargs):
+    handler.set_header('Access-Control-Allow-Origin', '*')
+    handler.set_header('Access-Control-Allow-Methods', '*')
+```
+
+
+
+
 
 
 

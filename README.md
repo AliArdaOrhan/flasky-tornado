@@ -105,32 +105,6 @@ async def my_exception_handler(handler, err):
 
 
 
-@app.api
-api decorator is creates the core of framework. Its purpose is to create endpoints
-for your application and brings extension points for another plugins. Any URL parameter will be
-passed as argument to handler function.
-
-host - default to .$*
-endpoint - endpoint url (It can be used for other extensions to provide meta-data for endpoint)
-method - HTTP method of Endpoint
-
-@app.before_request
-Before request hook is executed before every request. User can implement cross-cutting concerns here.
-
-@app.after_request
-After request is executed after every request. User can implement cross-cutting concerns here like CORS headers.
-
-@app.error_handler
-Hook that will be executed after an exception thrown
-
-@app.before_request
-async def check_auth_header(handler):
-  ..authorization logic
-
-
-
-
-
 
 
 

@@ -57,7 +57,7 @@ async def hello_world(handler, *args, **kwargs):
 
 
 
- ```python
+```python
 '''``app.before_request`` is decorator which is executed before a request passed to handler. For many extensions this is the configuration point.
 '''
 
@@ -70,7 +70,7 @@ async def check_authorization_header(handler, method_definition, *args, **kwargs
         raise AuthorizationError()
 ```
 
- ```python
+```python
 '''``app.after_request`` is decorator which is ALWAYS executed after a request passed to handler. This can be configuration point for many plugins.
 '''
 
@@ -80,7 +80,7 @@ async def add_cors_headers(handler, *args, **kwargs):
     handler.set_header('Access-Control-Allow-Methods', '*')
 ```
 
- ```python
+```python
 '''``app.error_handler`` is decorator which is executed when a exception occurs during execution of handler chain
 
 Parameters:
@@ -134,4 +134,3 @@ async def check_auth_header(handler):
 
 
 
- 

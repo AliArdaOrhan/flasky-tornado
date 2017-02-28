@@ -3,14 +3,11 @@ from asyncio import iscoroutinefunction, get_event_loop
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
-from tornado import options
-from tornado.log import enable_pretty_logging
-from tornado.web import Application
-from tornado.ioloop import IOLoop
+from tornado.web import Application, StaticFileHandler
+from tornado.ioloop import IOLoop, PeriodicCallback
 
-from flasky.errors import ConfigurationError
+from flasky.errors import ConfigurationError, default_error_handler_func
 from flasky.handler import DynamicHandler
-from flasky.parameter import JSONParameterResolver
 from flasky.schema import validate_schema
 
 
@@ -22,13 +19,28 @@ class FlaskyApp(object):
             self.ioloop = get_event_loop()
         self.before_request_funcs = []
         self.after_request_funcs = []
+        self.teardown_request_funcs = []
         self.user_loader_func = None
+        self.host_definitions = {}
         self.endpoints = OrderedDict()
         self.error_handlers = {}
-        self.app = None
         self.settings = settings
+        self.option_files = []
+        self.app = None
+        self.static_file_handler_definitions = []
+        self.periodic_functions = []
 
-    def api(self, endpoint=None, method=None, params=None, json_schema=None, requires_role=None, host='.*$'):
+
+    def api(self, host='.*$', endpoint=None, method=None, params=None, json_schema=None, **kwargs):
+        host_definition = self.host_definitions.get(host, None)
+        if host_definition == None:
+            host_definition = {}
+            self.host_definitions[host] = host_definition
+
+        endpoint_definition = self.host_definitions.get(host).get(endpoint, None)
+        if endpoint_definition == None:
+            endpoint_definition = {supported_method: {} for supported_method in DynamicHandler.SUPPORTED_METHODS}
+            host_definition[endpoint] = endpoint_definition
 
         def decorator(f):
             if not iscoroutinefunction(f):
@@ -43,19 +55,13 @@ class FlaskyApp(object):
             if method not in DynamicHandler.SUPPORTED_METHODS:
                 raise ConfigurationError(message='Unsuppoterted method {}'.format(method))
 
-            endpoint_definition = self.endpoints.get('endpoint', None)
-            if not endpoint_definition:
-                endpoint_definition = {k: {} for k in DynamicHandler.SUPPORTED_METHODS}
-                self.endpoints[endpoint] = endpoint_definition
-
-            method_definition = {
+            self.host_definitions[host][endpoint][method] = {
                 'function': f,
-                'parameters': self._prepare_parameter_resolvers(params),
-                'json_schema': self._prepare_schema_validator(json_schema),
-                'requires_role': requires_role
+                'json_schema': functools.partial(validate_schema, json_schema) if json_schema else None,
+                'parameters': params
             }
 
-            endpoint_definition[method] = method_definition
+            self.host_definitions[host][endpoint][method].update(kwargs)
 
             return f
 
@@ -73,50 +79,64 @@ class FlaskyApp(object):
         self.after_request_funcs.append(f)
         return f
 
-    def run(self, port=8888):
-        args = options.parse_command_line()
+    def on_teardown_request(self, f):
+        self.teardown_request_funcs.append(f)
+        return f
 
-        enable_pretty_logging()
-        self.app = Application(default_host="0.0.0.0",**self.settings)
+    def serve_static_file(self, pattern, path):
+        if not pattern:
+            raise ValueError('Pattern should be specified...')
 
-        for endpoint in self.endpoints:
-            spec = self._create_dynamic_handlers(endpoint)
-            self.app.add_handlers(*spec)
+        if path == None:
+            raise ValueError('Path should be specified.')
+
+        self.static_file_handler_definitions.append((pattern, {
+            'path': path
+        }))
+
+    def run(self, port=8888, host="0.0.0.0"):
+        self.app = Application(default_host=host, **self.settings)
+
+        for host, host_definition in self.host_definitions.items():
+            for endpoint, endpoint_definition in host_definition.items():
+                handler = self._create_dynamic_handlers(host, endpoint, endpoint_definition)
+                self.app.add_handlers(*handler)
+
+        for url_patttern, static_file_handler_settings in self.static_file_handler_definitions:
+            self.app.add_handlers(".*$", [(url_patttern, StaticFileHandler, static_file_handler_settings)])
+
+        if not self.error_handlers.get(None, None):
+            self.error_handlers[None] = default_error_handler_func
 
         self.app.listen(port)
         IOLoop.current().start()
 
-    def _create_dynamic_handlers(self, endpoint_pattern):
-        endpoint = self.endpoints[endpoint_pattern]
-        return '.*$', [
-            (endpoint_pattern, DynamicHandler, dict(endpoint_definition=endpoint, endpoint=endpoint, user_loader_func=self.user_loader_func,
-                                                    after_request_funcs=self.after_request_funcs,
-                                                    before_request_funcs=self.before_request_funcs, run_in_executor=self.run_in_executor))]
-
-    def _prepare_parameter_resolvers(self, params):
-        if not params:
-            return
-
-        return {param: JSONParameterResolver(param.param_path) for param in params}
-
-    def _prepare_schema_validator(self, json_schema):
-        if not json_schema:
-            return
-        return functools.partial(validate_schema, json_schema)
-
-    def errorhandler(self, err_type):
-        def decorator(f):
-            self.error_handlers[err_type] = f
-            return f
-        return decorator
+    def _create_dynamic_handlers(self, host, endpoint, endpoint_definition):
+        return host, [
+            (endpoint, DynamicHandler, dict(endpoint_definition=endpoint_definition, endpoint=endpoint, user_loader_func=self.user_loader_func,
+                                                    after_request_funcs=self.after_request_funcs, error_handler_funcs=self.error_handlers,
+                                                    before_request_funcs=self.before_request_funcs, run_in_executor=self.run_in_executor,
+                                            teardown_request_funcs=self.teardown_request_funcs))]
 
     def run_in_executor(self, func, *args):
         return self.ioloop.run_in_executor(self.executor, functools.partial(func, *args))
 
-    def configuration_loader(self):
-        pass
+    def run_periodic(self, func_time, func, *args):
+        cb = PeriodicCallback(functools.partial(func, *args), func_time)
+        cb.start()
+        self.periodic_functions.append(cb)
 
-    def add_handler(self):
-        pass
+    def error_handler(self, err_type=None):
+        def decorator(f):
+            self.error_handlers[err_type] = f
+            return f
+
+        return decorator
+
+    def add_tornado_handler(self,host_pattern, host_handlers):
+        self.app.add_handlers(host_pattern, host_handlers)
+
+
+
 
 

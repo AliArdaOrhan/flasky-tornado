@@ -1,3 +1,6 @@
+from flask import json
+
+
 class FlaskyTornError(BaseException):
 
     def __init__(self, status_code=None, message=None):
@@ -34,3 +37,14 @@ class MethodIsNotAllowed(FlaskyTornError):
 
     def __init__(self):
         super().__init__(status_code=405, message='Method is not allowed.')
+
+
+async def default_error_handler_func(handler, err):
+    if isinstance(err, FlaskyTornError):
+        handler.write(json.dumps({
+            'status': err.status_code,
+            'message': err.message
+        }))
+        handler.set_status(err.status_code)
+        return
+    raise err

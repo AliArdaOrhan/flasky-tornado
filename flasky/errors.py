@@ -1,4 +1,4 @@
-from flask import json
+import json
 
 
 class FlaskyTornError(BaseException):

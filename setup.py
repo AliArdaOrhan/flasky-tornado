@@ -3,11 +3,11 @@ from setuptools import setup
 
 setup(
     name='FlaskyTornado',
-    version="0.0.1",
+    version="0.0.2",
     license='BSD',
     author='Ali Arda Orhan',
     author_email='arda.orhan@dogantv.com.tr',
-    description='A microframework based on Werkzeug, Jinja2 '
+    description='A microframework based on Tornado and Flask '
                 'and good intentions',
     long_description=__doc__,
     packages=['flasky'],

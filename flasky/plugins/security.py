@@ -1,5 +1,4 @@
 import jwt
-from jwt import InvalidTokenError
 
 from flasky import errors
 
@@ -59,7 +58,7 @@ def __init_jwt_plugin(app, role_key='roles', **kwargs):
 
             raise errors.AuthorizationError('User has no privilege to use this endpoint.')
 
-        except InvalidTokenError as e:
+        except jwt.InvalidTokenError as e:
             raise errors.InvalidTokenError(e.args[1])
 
 

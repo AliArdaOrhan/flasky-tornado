@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 setup(
-    name='Flask',
+    name='FlaskyTornado',
     version="0.0.1",
     license='BSD',
     author='Ali Arda Orhan',
@@ -13,7 +13,9 @@ setup(
     packages=['flasky'],
     platforms='any',
     install_requires=[
-        'tornado==4.4.2'
+        'tornado==4.4.2',
+        'jsonschema==2.6.0',
+        'PyJWT==1.4.2'
     ],
     classifiers=[
         'Environment :: Web Environment',

@@ -38,6 +38,10 @@ class MethodIsNotAllowed(FlaskyTornError):
     def __init__(self):
         super().__init__(status_code=405, message='Method is not allowed.')
 
+class AuthorizationError(FlaskyTornError):
+
+    def __init__(self, message):
+        super().__init__(status_code=403, message=message)
 
 async def default_error_handler_func(handler, err):
     if isinstance(err, FlaskyTornError):

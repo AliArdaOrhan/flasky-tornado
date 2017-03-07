@@ -1,11 +1,10 @@
 import json
-import asyncio
-
-from concurrent.futures import ThreadPoolExecutor
 
 import tornado.web
 
-from flasky.errors import BadRequestError, FlaskyTornError, MethodIsNotAllowed
+from concurrent.futures import ThreadPoolExecutor
+
+from flasky.errors import BadRequestError, MethodIsNotAllowed
 
 # noinspection PyAttributeOutsideInit,PyAbstractClass
 class DynamicHandler(tornado.web.RequestHandler):

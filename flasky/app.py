@@ -29,6 +29,7 @@ class FlaskyApp(object):
         self.app = None
         self.static_file_handler_definitions = []
         self.periodic_functions = []
+        self.is_builded = False
 
 
     def api(self, host='.*$', endpoint=None, method=None, params=None, json_schema=None, **kwargs):
@@ -94,7 +95,7 @@ class FlaskyApp(object):
             'path': path
         }))
 
-    def run(self, port=8888, host="0.0.0.0"):
+    def build_app(self, host="0.0.0.0"):
         self.app = Application(default_host=host, **self.settings)
 
         for host, host_definition in self.host_definitions.items():
@@ -108,6 +109,11 @@ class FlaskyApp(object):
         if not self.error_handlers.get(None, None):
             self.error_handlers[None] = default_error_handler_func
 
+        self.is_builded = True
+
+    def run(self, port=8888, host="0.0.0.0"):
+        if not self.is_builded:
+            self.build_app(host=host)
         self.app.listen(port)
         IOLoop.current().start()
 
@@ -133,7 +139,7 @@ class FlaskyApp(object):
 
         return decorator
 
-    def add_tornado_handler(self,host_pattern, host_handlers):
+    def add_tornado_handler(self, host_pattern, host_handlers):
         self.app.add_handlers(host_pattern, host_handlers)
 
 

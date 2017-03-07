@@ -3,4 +3,6 @@ from .errors import BadRequestError, ConfigurationError, FlaskyTornError, Invali
 from .handler import DynamicHandler
 from .parameter import JSONParam
 from .schema import validate_schema
+from .test import FlaskyTestCase
+import flasky.plugins
 

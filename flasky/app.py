@@ -32,7 +32,7 @@ class FlaskyApp(object):
         self.is_builded = False
 
 
-    def api(self, host='.*$', endpoint=None, method=None, params=None, json_schema=None, **kwargs):
+    def api(self, host='.*$', endpoint=None, method=None, **kwargs):
         host_definition = self.host_definitions.get(host, None)
         if host_definition == None:
             host_definition = {}
@@ -57,13 +57,10 @@ class FlaskyApp(object):
                 raise ConfigurationError(message='Unsuppoterted method {}'.format(method))
 
             self.host_definitions[host][endpoint][method] = {
-                'function': f,
-                'json_schema': functools.partial(validate_schema, json_schema) if json_schema else None,
-                'parameters': params
+                'function': f
             }
 
             self.host_definitions[host][endpoint][method].update(kwargs)
-
             return f
 
         return decorator
@@ -73,6 +70,8 @@ class FlaskyApp(object):
         return f
 
     def before_request(self, f):
+        if not f:
+            raise ValueError('Function cant be none')
         self.before_request_funcs.append(f)
         return f
 

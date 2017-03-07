@@ -15,8 +15,8 @@ class JSONParam(object):
         else:
             self.param_levels.append(param_path)
 
-    def resolve(self, body):
-        val = body
+    def resolve(self, request_ctx):
+        val = request_ctx.body
         for param_level in self.param_levels:
             val = val.get(param_level, None)
             if not val:
@@ -29,6 +29,10 @@ class QueryParam(object):
     def __init__(self, parameter_name, parameter_type):
         self.parameter_name = parameter_name
         self.parameter_type = parameter_type
+
+    def resolve(self, request_ctx):
+        pass
+
 
 
 

@@ -1,10 +1,14 @@
 import json
+from json import JSONDecodeError
 
 import tornado.web
 
 from concurrent.futures import ThreadPoolExecutor
 
 from flasky.errors import BadRequestError, MethodIsNotAllowed
+
+from flasky.util import maybe_future
+
 
 # noinspection PyAttributeOutsideInit,PyAbstractClass
 class DynamicHandler(tornado.web.RequestHandler):
@@ -61,48 +65,33 @@ class DynamicHandler(tornado.web.RequestHandler):
         await self._handle('DELETE', *args, **kwargs)
 
     async def _handle(self, method, *args, **kwargs):
+        request_context = RequestContext(self)
+        method_definition = self._get_method_definition(method)
+
         try:
-            await self._do_handle(method, *args, **kwargs)
+            await self._do_handle(method_definition, request_context, *args, **kwargs)
         except BaseException as e:
             error_handler = self.error_handler_funcs[type(e)] if type(e) in self.error_handler_funcs else self.error_handler_funcs[None]
             await error_handler(self, e)
 
         for after_request_func in self.after_request_funcs:
-            await after_request_func(self)
+            await after_request_func(request_context, method_definition)
 
     def _get_method_definition(self, method_name):
         return self.endpoint_definition.get(method_name, None)
 
-    async def _do_handle(self, method, *args, **kwargs):
-        method_definition = self._get_method_definition(method)
-
+    async def _do_handle(self, method_definition, request_context, *args, **kwargs):
         if self.user_loader_func:
-            self.user = await self.user_loader_func(self)
+            self.user = await self.user_loader_func(request_context, method_definition)
 
         for before_request_func in self.before_request_funcs:
-            await before_request_func(self, method_definition)
+            await maybe_future(before_request_func(request_context, method_definition))
 
-        #: Check if method exists?
         handler_function = method_definition.get('function', None)
         if not handler_function:
             raise MethodIsNotAllowed()
 
-        #: Apply Schema Validator
-        schema_validator = method_definition.get('json_schema', None)
-        if schema_validator:
-            self.load_body_as_json()
-            schema_validator(self.body_as_json)
-
-        #: Resolve parameters
-        params = self._resolve_parameters(method_definition['parameters'])
-        if params:
-            kwargs.update({'params': params})
-
-        #: Do actual execution
-        await handler_function(self, *args, **kwargs)
-
-
-
+        await handler_function(request_context.handler, *request_context.get_args(), **request_context.get_kwargs())
 
     def _resolve_parameters(self, parameter_definitions):
         if not parameter_definitions:
@@ -120,11 +109,46 @@ class DynamicHandler(tornado.web.RequestHandler):
 
         return parameter_values
 
-    def load_body_as_json(self):
-        try:
-            self.body_as_json = json.loads(self.request.body.decode('utf-8'))
-        except json.JSONDecodeError:
-            raise BadRequestError('Body should be json object.')
+
+class RequestContext(object):
+
+    def __init__(self, handler):
+        self.handler = handler
+        self._body = self.handler.request.body
+        self._body_as_json = None
+        self._extra_args = []
+        self._extra_kwargs = {}
+
+    @property
+    def request(self):
+        return self.handler.request
+
+    @property
+    def body(self):
+        return self._body
+
+    @property
+    def body_as_json(self, **kwargs):
+        if not self._body_as_json:
+            try:
+                self._body_as_json = json.loads(self._body.decode('utf-8'), **kwargs)
+            except json.JSONDecodeError as e:
+                raise BadRequestError('Error while decoding json. msg={}'.format(e.args[0]))
+
+        return self._body_as_json
+
+    def get_args(self):
+        return self._extra_args
+
+    def get_kwargs(self):
+        return self._extra_kwargs
+
+    def add_kwargs(self, extra_kwargs):
+        self._extra_kwargs.update(extra_kwargs)
+
+    def add_args(self, *args):
+        self._extra_args.extend(args)
+
 
 
 

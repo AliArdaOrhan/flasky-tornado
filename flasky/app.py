@@ -1,19 +1,20 @@
 import functools
 from asyncio import iscoroutinefunction, get_event_loop
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from tornado.web import Application, StaticFileHandler
 from tornado.ioloop import IOLoop, PeriodicCallback
 
 from flasky.errors import ConfigurationError, default_error_handler_func
 from flasky.handler import DynamicHandler
-from flasky.schema import validate_schema
 
 
 class FlaskyApp(object):
-    executor = ThreadPoolExecutor()
+
     def __init__(self, ioloop=None, **settings):
+        self.on_start_funcs = []
+
         self.ioloop = ioloop
         if not ioloop:
             self.ioloop = get_event_loop()
@@ -29,6 +30,13 @@ class FlaskyApp(object):
         self.app = None
         self.static_file_handler_definitions = []
         self.periodic_functions = []
+
+        if settings['executor_type'] == 'process':
+            self.executor = ProcessPoolExecutor(max_workers=(settings['max_worker_count'] or 1))
+        else:
+            self.executor = ThreadPoolExecutor(max_workers=(settings['max_worker_count'] or 1))
+
+
         self.is_builded = False
 
 
@@ -114,6 +122,9 @@ class FlaskyApp(object):
         if not self.is_builded:
             self.build_app(host=host)
         self.app.listen(port)
+        for on_start_func in self.on_start_funcs:
+            IOLoop.current().add_callback(on_start_func)
+
         IOLoop.current().start()
 
     def _create_dynamic_handlers(self, host, endpoint, endpoint_definition):
@@ -130,6 +141,10 @@ class FlaskyApp(object):
         cb = PeriodicCallback(functools.partial(func, *args), func_time)
         cb.start()
         self.periodic_functions.append(cb)
+
+    def on_start(self, f):
+        self.on_start_funcs.append(f)
+        return f
 
     def error_handler(self, err_type=None):
         def decorator(f):

@@ -27,7 +27,7 @@ class ParameterPlugin(object):
             parameter_value = param.resolve(request_context)
             extra_kwargs[param.parameter_name] = parameter_value
 
-        request_context.add_kwargs(extra_kwargs)
+        request_context.add_kwargs(**extra_kwargs)
 
 
 class QueryParam(object):

@@ -7,6 +7,10 @@ class FlaskyTornError(BaseException):
         self.status_code = status_code
         self.message = message
 
+class ResourceNotFoundError(FlaskyTornError):
+
+    def __init__(self, message='Resource not found'):
+        super().__init__(status_code=404, message=message)
 
 class ConfigurationError(FlaskyTornError):
 
@@ -44,7 +48,9 @@ class AuthorizationError(FlaskyTornError):
         super().__init__(status_code=403, message=message)
 
 async def default_error_handler_func(handler, err):
+
     if isinstance(err, FlaskyTornError):
+        handler.clear()
         handler.write(json.dumps({
             'status': err.status_code,
             'message': err.message

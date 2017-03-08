@@ -3,14 +3,14 @@ from setuptools import setup
 
 setup(
     name='FlaskyTornado',
-    version="0.0.2",
+    version="0.0.6",
     license='BSD',
     author='Ali Arda Orhan',
     author_email='arda.orhan@dogantv.com.tr',
     description='A microframework based on Tornado and Flask '
                 'and good intentions',
     long_description=__doc__,
-    packages=['flasky'],
+    packages=['flasky', 'flasky.plugins.json_schema', 'flasky.plugins.parameters', 'flasky.plugins.bson'],
     platforms='any',
     install_requires=[
         'tornado==4.4.2',

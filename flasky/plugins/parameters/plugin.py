@@ -1,4 +1,4 @@
-from flasky import FlaskyTornError
+from flasky import FlaskyTornError, ConfigurationError
 from tornado.web import RequestHandler
 
 class ParameterRequiredError(FlaskyTornError):
@@ -32,14 +32,25 @@ class ParameterPlugin(object):
 
 class QueryParam(object):
 
-    def __init__(self, parameter_name, is_required=False, default=None):
+    def __init__(self, parameter_name, is_required=False, default=None, typ=str):
+        if not parameter_name:
+            raise ConfigurationError('Parameter name can not be None')
+
         self.parameter_name = parameter_name
         self.is_required = is_required
+        if not typ in [str, bool, float, int]:
+            raise ConfigurationError(message='Parameter<{}> type must be in bool, str, int, float.'.format(parameter_name))
+        self.typ = typ
         self.default = default
 
     def resolve(self, request_context):
         handler = request_context.handler
-        val = handler.get_query_argument(self.parameter_name, default=self.default)
+        val = self.typ(handler.get_query_argument(self.parameter_name, default=self.default))
+
         if self.is_required and not val:
             raise ParameterRequiredError(self.parameter_name)
+
+        if not val and self.default:
+            return self.default
+
         return val

@@ -1,6 +1,6 @@
 import functools
 from asyncio import iscoroutinefunction, get_event_loop
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from tornado.web import Application, StaticFileHandler
@@ -29,6 +29,7 @@ class FlaskyApp(object):
         self.option_files = []
         self.app = None
         self.static_file_handler_definitions = []
+        self.periodic_function_definitions = []
         self.periodic_functions = []
 
         if settings['executor_type'] == 'process':
@@ -116,6 +117,7 @@ class FlaskyApp(object):
         if not self.error_handlers.get(None, None):
             self.error_handlers[None] = default_error_handler_func
 
+
         self.is_builded = True
 
     def run(self, port=8888, host="0.0.0.0"):
@@ -124,6 +126,13 @@ class FlaskyApp(object):
         self.app.listen(port)
         for on_start_func in self.on_start_funcs:
             IOLoop.current().add_callback(on_start_func)
+
+        for periodic_function_definition in self.periodic_function_definitions:
+            cb = periodic_function_definition.register(IOLoop.current())
+            cb.start()
+            print(cb.__dict__)
+            self.periodic_functions.append(cb)
+
 
         IOLoop.current().start()
 
@@ -137,10 +146,17 @@ class FlaskyApp(object):
     def run_in_executor(self, func, *args):
         return self.ioloop.run_in_executor(self.executor, functools.partial(func, *args))
 
-    def run_periodic(self, func_time, func, *args):
+    def add_periodic_callback(self, func_time, func, *args):
         cb = PeriodicCallback(functools.partial(func, *args), func_time)
         cb.start()
         self.periodic_functions.append(cb)
+
+    def run_periodic(self, interval=None, *args):
+        print('Interval', interval)
+        def decorator(f):
+            self.periodic_function_definitions.append(PeriodicCallbackDef(f,  interval=interval , *args))
+            return f
+        return decorator
 
     def on_start(self, f):
         self.on_start_funcs.append(f)
@@ -158,5 +174,20 @@ class FlaskyApp(object):
 
 
 
+class PeriodicCallbackDef(object):
 
+    def __init__(self, f, interval=None, *args):
+        self.f = f
+        self._interval = interval
+        self._args = args
+
+
+    def register(self, ioloop):
+        f = self._get_binded_function()
+        return PeriodicCallback(f, self._interval)
+
+    def _get_binded_function(self):
+        if self._args and len(self._args) > 0:
+            return functools.partial(self.f, *self._args)
+        return self.f
 

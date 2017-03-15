@@ -32,10 +32,10 @@ class FlaskyApp(object):
         self.periodic_function_definitions = []
         self.periodic_functions = []
 
-        if settings['executor_type'] == 'process':
-            self.executor = ProcessPoolExecutor(max_workers=(settings['max_worker_count'] or 1))
+        if settings.get('executor_type', None) == 'process':
+            self.executor = ProcessPoolExecutor(max_workers=(settings.get('max_worker_count', None) or 1))
         else:
-            self.executor = ThreadPoolExecutor(max_workers=(settings['max_worker_count'] or 1))
+            self.executor = ThreadPoolExecutor(max_workers=(settings.get('max_worker_count', None) or 1))
 
 
         self.is_builded = False
@@ -130,9 +130,7 @@ class FlaskyApp(object):
         for periodic_function_definition in self.periodic_function_definitions:
             cb = periodic_function_definition.register(IOLoop.current())
             cb.start()
-            print(cb.__dict__)
             self.periodic_functions.append(cb)
-
 
         IOLoop.current().start()
 

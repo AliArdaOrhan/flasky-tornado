@@ -45,12 +45,15 @@ class QueryParam(object):
 
     def resolve(self, request_context):
         handler = request_context.handler
-        val = self.typ(handler.get_query_argument(self.parameter_name, default=self.default))
 
+        val = handler.get_query_argument(self.parameter_name, default=self.default)
         if self.is_required and not val:
             raise ParameterRequiredError(self.parameter_name)
 
         if not val and self.default:
             return self.default
+
+        if val and self.typ:
+            return self.typ(val)
 
         return val

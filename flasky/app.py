@@ -1,6 +1,7 @@
 import functools
-from asyncio import iscoroutinefunction, get_event_loop
-from collections import OrderedDict, namedtuple
+
+from asyncio import iscoroutinefunction
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from tornado.web import Application, StaticFileHandler
@@ -17,7 +18,8 @@ class FlaskyApp(object):
 
         self.ioloop = ioloop
         if not ioloop:
-            self.ioloop = get_event_loop()
+            self.ioloop = IOLoop.current()
+
         self.before_request_funcs = []
         self.after_request_funcs = []
         self.teardown_request_funcs = []
@@ -31,13 +33,9 @@ class FlaskyApp(object):
         self.static_file_handler_definitions = []
         self.periodic_function_definitions = []
         self.periodic_functions = []
-
-        if settings.get('executor_type', None) == 'process':
-            self.executor = ProcessPoolExecutor(max_workers=(settings.get('max_worker_count', None) or 1))
-        else:
-            self.executor = ThreadPoolExecutor(max_workers=(settings.get('max_worker_count', None) or 1))
-
-
+        self.cache_definitions = []
+        self.caches = {}
+        self.executor = ThreadPoolExecutor(max_workers=(settings.get('max_worker_count', None) or 1))
         self.is_builded = False
 
 
@@ -117,6 +115,12 @@ class FlaskyApp(object):
         if not self.error_handlers.get(None, None):
             self.error_handlers[None] = default_error_handler_func
 
+        for periodic_function_definition in self.periodic_function_definitions:
+            cb = periodic_function_definition.register(IOLoop.current())
+            cb.start()
+            self.periodic_functions.append(cb)
+
+
 
         self.is_builded = True
 
@@ -124,11 +128,12 @@ class FlaskyApp(object):
         if not self.is_builded:
             self.build_app(host=host)
         self.app.listen(port)
-        for on_start_func in self.on_start_funcs:
-            IOLoop.current().add_callback(on_start_func)
 
-        for periodic_function_definition in self.periodic_function_definitions:
-            cb = periodic_function_definition.register(IOLoop.current())
+        for on_start_func in self.on_start_funcs:
+            IOLoop.current().run_sync(functools.partial(on_start_func, self))
+
+        for cache_definition in self.cache_definitions:
+            cb = cache_definition.register(self)
             cb.start()
             self.periodic_functions.append(cb)
 
@@ -137,9 +142,9 @@ class FlaskyApp(object):
     def _create_dynamic_handlers(self, host, endpoint, endpoint_definition):
         return host, [
             (endpoint, DynamicHandler, dict(endpoint_definition=endpoint_definition, endpoint=endpoint, user_loader_func=self.user_loader_func,
-                                                    after_request_funcs=self.after_request_funcs, error_handler_funcs=self.error_handlers,
-                                                    before_request_funcs=self.before_request_funcs, run_in_executor=self.run_in_executor,
-                                            teardown_request_funcs=self.teardown_request_funcs))]
+                                            after_request_funcs=self.after_request_funcs, error_handler_funcs=self.error_handlers,
+                                            before_request_funcs=self.before_request_funcs, run_in_executor=self.run_in_executor,
+                                            teardown_request_funcs=self.teardown_request_funcs, caches=self.caches))]
 
     def run_in_executor(self, func, *args):
         return self.ioloop.run_in_executor(self.executor, functools.partial(func, *args))
@@ -150,7 +155,6 @@ class FlaskyApp(object):
         self.periodic_functions.append(cb)
 
     def run_periodic(self, interval=None, *args):
-        print('Interval', interval)
         def decorator(f):
             self.periodic_function_definitions.append(PeriodicCallbackDef(f,  interval=interval , *args))
             return f
@@ -159,6 +163,17 @@ class FlaskyApp(object):
     def on_start(self, f):
         self.on_start_funcs.append(f)
         return f
+
+    def cache(self, cache_name=None, interval=None):
+        if not cache_name:
+            raise ConfigurationError('Cant register cache without a name.')
+
+        if not interval:
+            raise ConfigurationError('Cant register cache without a interval.')
+
+        def decorator(f):
+            self.cache_definitions.append(CacheDefinition(cache_name, f, interval))
+        return decorator
 
     def error_handler(self, err_type=None):
         def decorator(f):
@@ -170,6 +185,25 @@ class FlaskyApp(object):
     def add_tornado_handler(self, host_pattern, host_handlers):
         self.app.add_handlers(host_pattern, host_handlers)
 
+
+class CacheDefinition(object):
+    def __init__(self, cache_name, f, interval=None):
+        self.cache_name = cache_name
+        self.f = f
+        self.interval = interval
+
+    def register(self, app):
+        f = self._get_binded_function(app)
+        app.ioloop.add_callback(f)
+        return PeriodicCallback(f, self.interval)
+
+    def _get_binded_function(self, app):
+        return functools.partial(self._cacher, self.f, app)
+
+    async def _cacher(self, f, app):
+
+        cache = await f()
+        app.caches[self.cache_name] = cache
 
 
 class PeriodicCallbackDef(object):

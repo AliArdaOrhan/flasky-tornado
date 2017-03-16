@@ -1,14 +1,13 @@
 import json
-from asyncio import iscoroutinefunction
+
 from json import JSONDecodeError
+from asyncio import iscoroutinefunction
+from concurrent.futures import ThreadPoolExecutor
 
 import tornado.web
 
-from concurrent.futures import ThreadPoolExecutor
-
-from flasky.errors import BadRequestError, MethodIsNotAllowed
-
 from flasky.util import maybe_future
+from flasky.errors import BadRequestError, MethodIsNotAllowed
 
 
 # noinspection PyAttributeOutsideInit,PyAbstractClass
@@ -18,7 +17,8 @@ class DynamicHandler(tornado.web.RequestHandler):
 
     def initialize(self, endpoint=None, endpoint_definition=None,
                    after_request_funcs=None, before_request_funcs=None, user_loader_func=None,
-                   error_handler_funcs=None, run_in_executor=None, teardown_request_funcs = None):
+                   error_handler_funcs=None, run_in_executor=None, teardown_request_funcs = None,
+                   caches=None, settings=None):
 
         #: Flasky app.
         self.run_in_executor = run_in_executor
@@ -43,6 +43,15 @@ class DynamicHandler(tornado.web.RequestHandler):
         self.user = None
 
         self.body_as_json = None
+
+        self.app_settings = settings
+
+        for key, cache in caches.items():
+            setattr(self, key, cache)
+
+
+    async def from_cache(self, cache_key, key):
+        return self.caches.get(cache_key, {}).get(key, {})
 
     async def post(self, *args, **kwargs):
         await self._handle('POST', *args, **kwargs)
@@ -100,22 +109,6 @@ class DynamicHandler(tornado.web.RequestHandler):
 
         for after_request_func in self.after_request_funcs:
             await after_request_func(request_context, method_definition)
-
-    def _resolve_parameters(self, parameter_definitions):
-        if not parameter_definitions:
-            return
-
-        if not len(parameter_definitions) > 0:
-            return
-
-        parameter_values = {}
-        for parameter_definition in parameter_definitions:
-            val = parameter_definition.resolve(self.body_as_json)
-            if not val and parameter_definition.is_required:
-                raise BadRequestError('Parameter {} is required...'.format(parameter_definition.param_path))
-            parameter_values[parameter_definition.param_name] = val
-
-        return parameter_values
 
 
 class RequestContext(object):

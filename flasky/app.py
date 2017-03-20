@@ -1,32 +1,87 @@
-import functools
+# -*- coding: utf-8 -*-
+"""
+    Flasky.app module implements the tornado.web.Application wrapper
+"""
 
+import functools
 from asyncio import iscoroutinefunction
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+from pprint import pprint
 
 from tornado.web import Application, StaticFileHandler
 from tornado.ioloop import IOLoop, PeriodicCallback
 
-from flasky.errors import ConfigurationError, default_error_handler_func
-from flasky.handler import DynamicHandler
+from .errors import ConfigurationError, default_error_handler_func
+from .handler import DynamicHandler
+from .di import DIContainer
+from .cache import CacheManager
+from .helpers import _HandlerBoundObject
+from .parameters import ParameterResolver
 
 
 class FlaskyApp(object):
+    """The FlaskyApp object provides a convenient API to configure
+    tornado.Application. It acts as a container for all configuration
+    functions, objects and settings. On Application run FlaskyApp instance
+    registers DynamicHandler classes for every endpoint its defined.
+
+    A FlaskyApp object should be created in main module or :file:`__init__.py::
+
+        from flasky.app import FlaskyApp
+        app = FlaskyApp(**settings)
+
+    :param ioloop: IOLoop that will be used by application.
+    :param settings: Application specific settings.
+
+    """
+
+    #: The class for used as object container
+    #: See :class:`~flasky.DIContainer`
+    di_class = DIContainer
+
+    #: The class for used as parameter resolver
+    #: See :class: `~flasky.parameters.ParameterResolver`
+    parameter_resolver_class = ParameterResolver
+
+    #: The class for used as cache manager
+    #: See :class: `~flasky.cache.CacheManager`
+    cache_manager_class = CacheManager
+
+    #: The debug flag. This flag will be passed to tornado.Application
+    #: If the debug flag set True, Application will be reload on every if code
+    #: changes detected and Application will spit detailed logging information.
+    debug = False
+
+    #: The name of the logger to use.
+    logger_name = "flasky.logger"
+
+
 
     def __init__(self, ioloop=None, **settings):
         self.on_start_funcs = []
 
         self.ioloop = ioloop
         if not ioloop:
-            self.ioloop = IOLoop.current()
+            self.ioloop = IOLoop.current(instance=False)
 
-        self.before_request_funcs = []
         self.after_request_funcs = []
         self.teardown_request_funcs = []
         self.user_loader_func = None
         self.host_definitions = {}
         self.endpoints = OrderedDict()
-        self.error_handlers = {}
+
+        #: A error specific handler registry. Key will be type of error and None
+        #: type will be used as default error handler. 
+        #:
+        #: To register an error handler, use the :meth:`error_handler`
+        #: decorator
+        self.error_handlers = {None: default_error_handler_func}
+
+        #: A list of functions that will be called at the beginning of the
+        #: request
+        self.before_request_funcs = []
+
         self.settings = settings
         self.option_files = []
         self.app = None
@@ -37,6 +92,9 @@ class FlaskyApp(object):
         self.caches = {}
         self.executor = ThreadPoolExecutor(max_workers=(settings.get('max_worker_count', None) or 1))
         self.is_builded = False
+        self.di = self.di_class(self)
+        self.parameter_resolver = self.parameter_resolver_class(self)
+        self.cache = self.cache_manager_class(self)
 
 
     def api(self, host='.*$', endpoint=None, method=None, **kwargs):
@@ -101,53 +159,58 @@ class FlaskyApp(object):
             'path': path
         }))
 
+    def build_app_ctx(self):
+        return ApplicationContext()
+
     def build_app(self, host="0.0.0.0"):
         self.app = Application(default_host=host, **self.settings)
+        app_ctx = self.build_app_ctx()
 
         for host, host_definition in self.host_definitions.items():
             for endpoint, endpoint_definition in host_definition.items():
-                handler = self._create_dynamic_handlers(host, endpoint, endpoint_definition)
+                handler = self._create_dynamic_handlers(host, endpoint, endpoint_definition, app_ctx)
                 self.app.add_handlers(*handler)
 
         for url_patttern, static_file_handler_settings in self.static_file_handler_definitions:
             self.app.add_handlers(".*$", [(url_patttern, StaticFileHandler, static_file_handler_settings)])
 
-        if not self.error_handlers.get(None, None):
-            self.error_handlers[None] = default_error_handler_func
-
         for periodic_function_definition in self.periodic_function_definitions:
-            cb = periodic_function_definition.register(IOLoop.current())
+            cb = periodic_function_definition.register(self.ioloop)
             cb.start()
             self.periodic_functions.append(cb)
-
-
 
         self.is_builded = True
 
     def run(self, port=8888, host="0.0.0.0"):
         if not self.is_builded:
             self.build_app(host=host)
-        self.app.listen(port)
 
         for on_start_func in self.on_start_funcs:
-            IOLoop.current().run_sync(functools.partial(on_start_func, self))
+            self.ioloop.run_sync(functools.partial(on_start_func, self))
 
-        for cache_definition in self.cache_definitions:
-            cb = cache_definition.register(self)
-            cb.start()
-            self.periodic_functions.append(cb)
+        self.app.listen(port)
+        self.ioloop.start()
 
-        IOLoop.current().start()
-
-    def _create_dynamic_handlers(self, host, endpoint, endpoint_definition):
+    def _create_dynamic_handlers(self, host, endpoint, endpoint_definition, app_ctx):
         return host, [
-            (endpoint, DynamicHandler, dict(endpoint_definition=endpoint_definition, endpoint=endpoint, user_loader_func=self.user_loader_func,
-                                            after_request_funcs=self.after_request_funcs, error_handler_funcs=self.error_handlers,
-                                            before_request_funcs=self.before_request_funcs, run_in_executor=self.run_in_executor,
-                                            teardown_request_funcs=self.teardown_request_funcs, caches=self.caches))]
+                (endpoint,
+                 DynamicHandler,
+                 dict(
+                     endpoint_definition=endpoint_definition,
+                     endpoint=endpoint,
+                     user_loader_func=self.user_loader_func,
+                     after_request_funcs=self.after_request_funcs,
+                     error_handler_funcs=self.error_handlers,
+                     before_request_funcs=self.before_request_funcs,
+                     run_in_executor=self.run_in_executor,
+                     teardown_request_funcs=self.teardown_request_funcs,
+                     caches=self.caches,
+                     app_ctx = app_ctx
+                     )
+                 )]
 
     def run_in_executor(self, func, *args):
-        return self.ioloop.run_in_executor(self.executor, functools.partial(func, *args))
+        return self.ioloop.asyncio_loop.run_in_executor(self.executor, functools.partial(func, *args))
 
     def add_periodic_callback(self, func_time, func, *args):
         cb = PeriodicCallback(functools.partial(func, *args), func_time)
@@ -161,19 +224,8 @@ class FlaskyApp(object):
         return decorator
 
     def on_start(self, f):
-        self.on_start_funcs.append(f)
+        self.on_start_funcs.insert(0,f)
         return f
-
-    def cache(self, cache_name=None, interval=None):
-        if not cache_name:
-            raise ConfigurationError('Cant register cache without a name.')
-
-        if not interval:
-            raise ConfigurationError('Cant register cache without a interval.')
-
-        def decorator(f):
-            self.cache_definitions.append(CacheDefinition(cache_name, f, interval))
-        return decorator
 
     def error_handler(self, err_type=None):
         def decorator(f):
@@ -185,25 +237,11 @@ class FlaskyApp(object):
     def add_tornado_handler(self, host_pattern, host_handlers):
         self.app.add_handlers(host_pattern, host_handlers)
 
+class ApplicationContext(_HandlerBoundObject):
 
-class CacheDefinition(object):
-    def __init__(self, cache_name, f, interval=None):
-        self.cache_name = cache_name
-        self.f = f
-        self.interval = interval
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    def register(self, app):
-        f = self._get_binded_function(app)
-        app.ioloop.add_callback(f)
-        return PeriodicCallback(f, self.interval)
-
-    def _get_binded_function(self, app):
-        return functools.partial(self._cacher, self.f, app)
-
-    async def _cacher(self, f, app):
-
-        cache = await f()
-        app.caches[self.cache_name] = cache
 
 
 class PeriodicCallbackDef(object):
@@ -222,4 +260,5 @@ class PeriodicCallbackDef(object):
         if self._args and len(self._args) > 0:
             return functools.partial(self.f, *self._args)
         return self.f
+
 

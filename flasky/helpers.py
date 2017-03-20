@@ -1,7 +1,32 @@
 import decimal
+import datetime
 from bson import ObjectId
 from bson.json_util import default
-import datetime
+from asyncio import iscoroutinefunction
+
+
+class _HandlerBoundObject(object):
+    """ Purpose of this object is to programatticaly
+    configure return value of property accesses
+    """
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def __getattr__(self, item):
+        try:
+            object.__getattribute__(self, item)
+        except AttributeError:
+            return None
+
+
+def maybe_coroutine(f):
+    if iscoroutinefunction(f):
+        return f
+
+    async def wrapper(*args, **kwargs):
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 def object_hook(json_dict):
@@ -30,3 +55,4 @@ def bson_to_json(o):
     elif isinstance(o, decimal.Decimal):
         return str(o)
     return default(o)
+

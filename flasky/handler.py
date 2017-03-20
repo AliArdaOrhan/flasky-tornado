@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import tornado.web
 
-from flasky.util import maybe_future
 from flasky.errors import BadRequestError, MethodIsNotAllowed
 
 
@@ -18,8 +17,8 @@ class DynamicHandler(tornado.web.RequestHandler):
     def initialize(self, endpoint=None, endpoint_definition=None,
                    after_request_funcs=None, before_request_funcs=None, user_loader_func=None,
                    error_handler_funcs=None, run_in_executor=None, teardown_request_funcs = None,
-                   caches=None, settings=None):
-
+                   caches=None, settings=None, app_ctx=None):
+        self.context = app_ctx
         #: Flasky app.
         self.run_in_executor = run_in_executor
 
@@ -42,16 +41,12 @@ class DynamicHandler(tornado.web.RequestHandler):
 
         self.user = None
 
-        self.body_as_json = None
+        self._body_as_json = None
 
         self.app_settings = settings
 
         for key, cache in caches.items():
             setattr(self, key, cache)
-
-
-    async def from_cache(self, cache_key, key):
-        return self.caches.get(cache_key, {}).get(key, {})
 
     async def post(self, *args, **kwargs):
         await self._handle('POST', *args, **kwargs)
@@ -75,24 +70,26 @@ class DynamicHandler(tornado.web.RequestHandler):
         await self._handle('DELETE', *args, **kwargs)
 
     async def _handle(self, method, *args, **kwargs):
-        request_context = RequestContext(self)
-        request_context.add_args(*args)
-        request_context.add_kwargs(**kwargs)
-
         method_definition = self._get_method_definition(method)
 
         try:
-            await self._do_handle(method_definition, request_context)
+            await self._do_handle(method_definition, *args, **kwargs)
         except BaseException as e:
-            error_handler = self.error_handler_funcs[type(e)] if type(e) in self.error_handler_funcs else self.error_handler_funcs[None]
+            error_handler = self.error_handler_funcs[type(e)] \
+                            if type(e) in self.error_handler_funcs \
+                            else self.error_handler_funcs[None]
+
             await error_handler(self, e)
+
+            for teardown_funcs in self.teardown_request_funcs:
+                await teardown_funcs(self, method_definition)
 
     def _get_method_definition(self, method_name):
         return self.endpoint_definition.get(method_name, None)
 
-    async def _do_handle(self, method_definition, request_context):
+    async def _do_handle(self, method_definition, *args, **kwargs):
         if self.user_loader_func:
-            self.user = await self.user_loader_func(request_context, method_definition)
+            self.user = await self.user_loader_func(self, method_definition)
 
         handler_function = method_definition.get('function', None)
         if not handler_function:
@@ -100,68 +97,23 @@ class DynamicHandler(tornado.web.RequestHandler):
 
         for before_request_func in self.before_request_funcs:
             if iscoroutinefunction(before_request_func):
-                await before_request_func(request_context, method_definition)
+                await before_request_func(self, method_definition)
             else:
-                before_request_func(request_context, method_definition)
+                before_request_func(self, method_definition)
 
 
-        await handler_function(request_context.handler, *request_context.args, **request_context.kwargs)
+        await handler_function(self, *args, **kwargs)
 
         for after_request_func in self.after_request_funcs:
-            await after_request_func(request_context, method_definition)
+            await after_request_func(self, method_definition)
 
-
-class RequestContext(object):
-
-    def __init__(self, handler):
-        self.handler = handler
-        self._body = self.handler.request.body
-        self._body_as_json = None
-        self._context_vars = {}
-        self._extra_args = []
-        self._extra_kwargs = {}
-
-    @property
-    def args(self):
-        return self._extra_args
-
-    @property
-    def kwargs(self):
-        return self._extra_kwargs
-
-    def get(self, key, default=None):
-        return self._context_vars.get(key, default)
-
-    def put(self, key, value):
-        self._context_vars[key] = value
-
-    @property
-    def headers(self):
-        return self.handler.request.headers
-
-    @property
-    def request(self):
-        return self.handler.request
-
-    @property
-    def body(self):
-        return self._body
-
-    @property
     def body_as_json(self, **kwargs):
         if not self._body_as_json:
             try:
-                self._body_as_json = json.loads(self._body.decode('utf-8'), **kwargs)
+                self._body_as_json = json.loads(self.request.body.decode('utf-8'), **kwargs)
             except json.JSONDecodeError as e:
                 raise BadRequestError('Error while decoding json. msg={}'.format(e.args[0]))
-
         return self._body_as_json
-
-    def add_kwargs(self, **extra_kwargs):
-        self._extra_kwargs.update(extra_kwargs)
-
-    def add_args(self, *args):
-        self._extra_args.extend(args)
 
 
 

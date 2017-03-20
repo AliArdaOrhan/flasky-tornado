@@ -1,6 +1,5 @@
 import json
 
-from json import JSONDecodeError
 from asyncio import iscoroutinefunction
 from concurrent.futures import ThreadPoolExecutor
 

@@ -10,12 +10,11 @@ setup(
     description='A microframework based on Tornado and Flask '
                 'and good intentions',
     long_description=__doc__,
-    packages=['flasky', 'flasky.plugins.json_schema', 'flasky.plugins.parameters', 'flasky.plugins.bson'],
+    packages=['flasky'],
     platforms='any',
     install_requires=[
         'tornado==4.4.2',
-        'jsonschema==2.6.0',
-        'PyJWT==1.4.2'
+        'pymongo==3.4.0'
     ],
     classifiers=[
         'Environment :: Web Environment',

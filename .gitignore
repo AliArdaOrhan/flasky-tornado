@@ -126,6 +126,7 @@ ENV/
 
 # Spyder project settings
 .spyderproject
+*.pyc
 
 # Rope project settings
 .ropeproject

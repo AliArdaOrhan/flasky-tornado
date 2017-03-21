@@ -144,7 +144,7 @@ class FlaskyApp(object):
         self.after_request_funcs.append(f)
         return f
 
-    def on_teardown_request(self, f):
+    def teardown_request(self, f):
         self.teardown_request_funcs.append(f)
         return f
 

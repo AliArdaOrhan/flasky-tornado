@@ -1,3 +1,5 @@
+import inspect
+
 from flasky import errors
 
 
@@ -19,7 +21,7 @@ class DIContainer(object):
     def register(self,name=None, strategy=SINGLETON):
         def decorator(f):
             register_name = name or self._resolve_name(f)
-            dependencies = self._resolve_dependencies(f)
+            dependencies = list(inspect.signature(f).parameters.keys())
 
             self._factory_funcs[register_name] = {
                     "factory_func": f,
@@ -35,7 +37,7 @@ class DIContainer(object):
         return f.__name__
 
     def _resolve_dependencies(self, f):
-        return f.__code__.co_varnames
+        return list(inspect.signature(f).parameters.keys())
 
     async def get(self, name):
         if name in self._instance_registry:

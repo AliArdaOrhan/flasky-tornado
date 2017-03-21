@@ -107,11 +107,14 @@ class DynamicHandler(tornado.web.RequestHandler):
             await after_request_func(self, method_definition)
 
     def body_as_json(self, **kwargs):
+        throw_exc = kwargs.pop("throw_exc", False)
         if not self._body_as_json:
             try:
                 self._body_as_json = json.loads(self.request.body.decode('utf-8'), **kwargs)
             except json.JSONDecodeError as e:
-                raise BadRequestError('Error while decoding json. msg={}'.format(e.args[0]))
+                if throw_exc:
+                    raise BadRequestError('Expected json but not found. msg={}'.format(e.args[0]), reason=e) from e
+                return None
         return self._body_as_json
 
 

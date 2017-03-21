@@ -129,7 +129,7 @@ class JSONPathArgument(object):
                                 if path.strip() != ""
                             ]
         else:
-            self.splitted = list(self.parameter_path)
+            self.splitted = [self.parameter_path]
 
 
     def resolve(self, handler):
@@ -162,15 +162,12 @@ class JSONPathArgument(object):
 
 
     def _get_json(self, handler):
-        if hasattr(handler, "body_as_json") and handler.body_as_json is not None:
-            body = handler.body_as_json()
-        else:
-            try:
-                body = json.loads(handler.request.body.decode("utf-8"))
-            except json.JSONDecodeError:
-                return None
+        try:
+            body = handler.body_as_json(throw_exc=True)
+            return handler.body_as_json()
+        except json.JSONDecodeError:
+            return None
 
-        return body
 
 
 

@@ -68,7 +68,7 @@ class FlaskyApp(object):
         self.after_request_funcs = []
         self.teardown_request_funcs = []
         self.user_loader_func = None
-        self.host_definitions = {}
+        self.host_definitions = OrderedDict()
         self.endpoints = OrderedDict()
 
         #: A error specific handler registry. Key will be type of error and None

@@ -100,13 +100,15 @@ class FlaskyApp(object):
 
     def api(self, host='.*$', endpoint=None, method=None, **kwargs):
         host_definition = self.host_definitions.get(host, None)
-        if host_definition == None:
+        if host_definition is None:
             host_definition = OrderedDict()
             self.host_definitions[host] = host_definition
 
         endpoint_definition = self.host_definitions.get(host).get(endpoint, None)
         if endpoint_definition == None:
-            endpoint_definition = {supported_method: {} for supported_method in DynamicHandler.SUPPORTED_METHODS}
+            endpoint_definition = OrderedDict()
+            for supported_method in DynamicHandler.SUPPORTED_METHODS:
+                endpoint_definition[supported_method] = OrderedDict()
             host_definition[endpoint] = endpoint_definition
 
         def decorator(f):
@@ -188,9 +190,6 @@ class FlaskyApp(object):
 
         for on_start_func in self.on_start_funcs:
             self.ioloop.run_sync(functools.partial(on_start_func, self))
-
-
-
 
         self.app.listen(port)
         self.ioloop.start()

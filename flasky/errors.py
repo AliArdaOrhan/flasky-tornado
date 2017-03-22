@@ -15,6 +15,11 @@ class ResourceNotFoundError(FlaskyTornError):
     def __init__(self, message='Resource not found', reason=None):
         super().__init__(status_code=404, message=message, reason=reason)
 
+class ResourceAlreadyExistsError(FlaskyTornError):
+
+    def __init__(self, message="Resource is already exists.", reason=None):
+        super().__init__(status_code=409, message=message, reason=reason)
+
 class ConfigurationError(FlaskyTornError):
 
     def __init__(self, message=None, reason=None):

@@ -55,6 +55,11 @@ class AuthorizationError(FlaskyTornError):
     def __init__(self, message, reason=None):
         super().__init__(status_code=403, message=message, reason=reason)
 
+class ParameterIsRequiredError(FlaskyTornError):
+    def __init__(self, required_parameter=None, service_name=None):
+        super().__init__(status_code=400, message="Parameter is required for"
+                        " this action".format(required_parameter,service_name))
+
 async def default_error_handler_func(handler, err):
 
     if isinstance(err, FlaskyTornError):
@@ -65,5 +70,6 @@ async def default_error_handler_func(handler, err):
             'message': err.message
         }))
         handler.set_status(err.status_code)
+        handler.set_header("Content-Type", "application/json")
         return
     raise err

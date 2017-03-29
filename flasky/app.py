@@ -7,7 +7,6 @@ import functools
 from asyncio import iscoroutinefunction
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from pprint import pprint
 
 from tornado.web import Application, StaticFileHandler
 from tornado.ioloop import IOLoop, PeriodicCallback
@@ -244,7 +243,6 @@ class ApplicationContext(_HandlerBoundObject):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
 
 
 class PeriodicCallbackDef(object):

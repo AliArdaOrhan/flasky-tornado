@@ -1,38 +1,4 @@
-
-# User-specific stuff:
-.idea/**/workspace.xml
-.idea/**/tasks.xml
-.idea/dictionaries
-
-# Sensitive or high-churn files:
-.idea/**/dataSources/
-.idea/**/dataSources.ids
-.idea/**/dataSources.xml
-.idea/**/dataSources.local.xml
-.idea/**/sqlDataSources.xml
-.idea/**/dynamic.xml
-.idea/**/uiDesigner.xml
-.idea/**
-# Gradle:
-.idea/**/gradle.xml
-.idea/**/libraries
-
-# Mongo Explorer plugin:
-.idea/**/mongoSettings.xml
-
-## File-based project format:
-*.iws
-
-## Plugin-specific files:
-
-# IntelliJ
-/out/
-
-# mpeltonen/sbt-idea plugin
-.idea_modules/
-
-# JIRA plugin
-atlassian-ide-plugin.xml# Byte-compiled / optimized / DLL files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -46,6 +12,7 @@ env/
 build/
 develop-eggs/
 dist/
+.idea/
 downloads/
 eggs/
 .eggs/
@@ -58,6 +25,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.cache/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -116,8 +84,8 @@ celerybeat-schedule
 # dotenv
 .env
 
+#swap
 *.swp
-.cache/
 
 # virtualenv
 .venv
@@ -126,13 +94,9 @@ ENV/
 
 # Spyder project settings
 .spyderproject
-*.pyc
 
 # Rope project settings
 .ropeproject
 
-
-
-FlaskyTornado.egg-info/
-dist/
-flasky/plugins/bson/__pycache__/
+.DS_STORE
+.idea/

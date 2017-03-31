@@ -142,8 +142,10 @@ class JSONPathArgument(object):
             if key not in val:
                 if self.default:
                     return self.default
-                raise ParameterRequiredError("Parameter<{}> is required but not found."
-                        .format(self.parameter_name))
+                if self.is_required:
+                    raise ParameterRequiredError("Parameter<{}> is required but not found."
+                            .format(self.parameter_name))
+                return None
             val = val[key]
 
         return self.mapper(val) if self.mapper else val

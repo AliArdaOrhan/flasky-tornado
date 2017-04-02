@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='FlaskyTornado',
-    version="0.0.22",
+    version="0.0.25",
     license='BSD',
     author='Ali Arda Orhan',
     author_email='arda.orhan@dogantv.com.tr',
@@ -15,7 +15,6 @@ setup(
     install_requires=[
         'tornado==4.4.2',
         'pymongo==3.4.0',
-        'bson==0.4.6'
     ],
     classifiers=[
         'Environment :: Web Environment',

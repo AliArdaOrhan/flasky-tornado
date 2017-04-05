@@ -11,9 +11,9 @@ logger = logging.getLogger("flasky.cache")
 
 class CacheManager(object):
 
-    def __init__(self, app):
+    def __init__(self, app, ioloop=None):
         self.app = app
-        self.ioloop = app.ioloop or IOLoop.currrent()
+        self.ioloop = ioloop or app.ioloop 
         self.caches = []
         app.on_start(self.on_start_hook)
         app.before_request(self.before_request_hook)

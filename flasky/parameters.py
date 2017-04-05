@@ -113,29 +113,29 @@ class CollectionBodyArgument(ResolvableParameter):
 
 class JSONPathArgument(object):
 
-    def __init__(self, parameter_name, path=".", is_required=False, default=None, mapper=None):
+    def __init__(self, parameter_name, path=None, is_required=False, default=None, mapper=None):
         self.parameter_name = parameter_name
         self.is_required = is_required
         self.default = default
         self.parameter_path = path
         self.mapper = mapper
-        if self.parameter_path == "" or self.parameter_path is None:
-            raise ConfigurationError("Parameter path must not be None")
-
-        if "." in self.parameter_path:
+        
+        if self.parameter_path and  "." in self.parameter_path:
             self.splitted = [
                                 path
                                 for path in self.parameter_path.split(".")
                                 if path.strip() != ""
                             ]
-        else:
+        elif self.parameter_path is not None:
             self.splitted = [self.parameter_path]
-
-
+        
     def resolve(self, handler):
         body = self._get_json(handler)
         if not body:
             return self._handle_none_body()
+        
+        if not self.parameter_path:
+            return body
 
         val = body
         for key in self.splitted:

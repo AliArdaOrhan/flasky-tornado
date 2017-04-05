@@ -34,8 +34,6 @@ async def test_bind_params_should_create_parameters_namespace_in_handler():
     handler.get_query_argument = lambda x, default=None: "test_value"
     resolver.bind_params(handler, method_definition)
 
-    print('in controller')
-    print(handler.parameters.__dict__)
 
     assert handler.parameters is not None
     assert handler.parameters.test_param is not None
@@ -109,31 +107,23 @@ def test_body_collection_parameter_resolver_should_return_values():
 
     assert param.resolve(handler) == ['test', 'test2']
 
-def test_json_path_argument_resolve_should_return_body_itself_when_path_is_dot():
-
+def test_resolve_of_json_path_argument_should_return_body_as_json_when_path_is_none():
     handler = MagicMock()
-    #: MagicMock returns Mock when it is not set
-    handler.body_as_json = None
-    handler.request.body = json.dumps(
-            {
-                'hello': 'world'
-            }).encode("utf-8")
-
-    path_arg = JSONPathArgument("test_param", path=".").resolve(handler)
-
-    assert path_arg == {"hello":"world"}
+    handler.body_as_json.return_value = {"hello":"world"}
+    param = JSONPathArgument("test_param").resolve(handler)
+    assert param["hello"] == "world"
 
 
 def test_json_path_argument_resolve_nested_argument():
     handler = MagicMock()
-    #: MagicMock returns Mock when it is not set
-    handler.body_as_json = None
-    handler.request.body = json.dumps({
+    body_json = json.dumps({
             "hello": {
                 "world":"merhaba"
                 }
         }).encode("utf-8")
 
+    handler.body_as_json.return_value = json.loads(body_json.decode("utf-8")) 
+    handler.request.body = body_json
     path_arg = JSONPathArgument("test_param", path="hello.world").resolve(handler)
 
     assert path_arg == "merhaba"
@@ -141,7 +131,7 @@ def test_json_path_argument_resolve_nested_argument():
 
 def get_handler_without_json_body():
     handler = MagicMock()
-    handler.body_as_json = None
+    handler.body_as_json.return_value = None
     handler.request.body = "not=json&body=input".encode("utf-8")
     return handler
 
@@ -155,9 +145,10 @@ def test_json_path_argument_resolve_should_not_raise_exception_if_json_body_not_
 
 def test_json_path_argument_resolve_should_raise_exc_if_param_is_required():
     handler = get_handler_without_json_body()
-
     try:
-        path_arg = JSONPathArgument("test_param", path="hello.world", is_required=True).resolve(handler)
+        path_arg = JSONPathArgument("test_param", path="hello.world", 
+                                    is_required=True).resolve(handler)
+
     except ParameterRequiredError:
         assert True
         return
@@ -166,13 +157,12 @@ def test_json_path_argument_resolve_should_raise_exc_if_param_is_required():
 
 def test_json_path_argument_resolve_should_return_default_val_if_its_not_found():
     handler = MagicMock()
-    handler.body_as_json = {
+    handler.body_as_json.return_value = {
                 "test":"val"
             }
 
-    path_arg = JSONPathArgument("test_param", path="tes2", is_required=False, default="default_val")
+    path_arg = JSONPathArgument("test_param", path="test_2", is_required=False, default="default_val")
     path_val = path_arg.resolve(handler)
-
     assert path_val == "default_val"
 
 class StubModel(object):
@@ -187,7 +177,7 @@ class StubModel(object):
 
 def test_json_path_argument_should_return_value_mapped_with_mapper():
     handler = MagicMock()
-    handler.body_as_json = {
+    handler.body_as_json.return_value = {
                         "params": {
                                 "model" : {
                                         "test_key": "test_val"

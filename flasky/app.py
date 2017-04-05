@@ -62,18 +62,37 @@ class FlaskyApp(object):
         if not ioloop:
             self.ioloop = IOLoop.current(instance=False)
 
-        #: On start functions which will be  runned right after application
-        #: start. It's good place to do initialization.
+        #: List of functions which will be runned before any request will be handled 
+        #: This functions might be used for any initialization routine
         self.on_start_funcs = []
 
-        #: A list of functions that will be executed before every request.
-        #: It can be used to implement cross-cutting concerns(logging,
-        #: authenticaiton etc..)
-        #: 
-        #: To register a function use :meth:`before_request`
+        #: A list of functions which will be called at the beginning of the
+        #: request. Before request functions can be used to perform common 
+        #: cross-cutting concerns (logging, authorization etc.)
+        #: To register a function use the :meth:`before_request` decorator
         self.before_request_funcs = []
 
+        #: A list of functions which will be called after the request handled 
+        #: by handler function.
+        #: 
+        #: Warning: This function will not be called if any error occur during
+        #: handlers to execute a function after request under any 
+        #: circumstances please please check :meth:`teardown_request` 
+        #:
+        #: To register a function use the :meth:`after_request` decorator
         self.after_request_funcs = []
+        
+        #: A list of functions which will be called after request is handled
+        #: this function will be called even if any error exists on handler
+        #: function. This method can :meth:`on_teardown_request`
+        self.teardown_request_funcs = []
+
+        #: A error specific handler registry. Key will be type of error and None
+        #: type will be used as default error handler. 
+        #: To register an error handler, use the :meth:`error_handler`
+        #: decorator
+        self.error_handlers = {None: default_error_handler_func}
+
         self.teardown_request_funcs = []
         self.user_loader_func = None
         self.host_definitions = OrderedDict()

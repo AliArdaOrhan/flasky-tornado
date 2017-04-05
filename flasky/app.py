@@ -22,8 +22,9 @@ from .parameters import ParameterResolver
 class FlaskyApp(object):
     """The FlaskyApp object provides a convenient API to configure
     tornado.Application. It acts as a container for all configuration
-    functions, objects and settings. On Application run FlaskyApp instance
-    registers DynamicHandler classes for every endpoint its defined.
+    functions, objects and settings. On application bootstrap FlaskyApp instance
+    registers DynamicHandler classes for every endpoint that is  defined by
+    user of library.
 
     A FlaskyApp object should be created in main module or :file:`__init__.py::
 
@@ -56,13 +57,18 @@ class FlaskyApp(object):
     logger_name = "flasky.logger"
 
 
-
     def __init__(self, ioloop=None, **settings):
-        self.on_start_funcs = []
-
         self.ioloop = ioloop
         if not ioloop:
             self.ioloop = IOLoop.current(instance=False)
+
+        #: On start functions which will be  runned right after application
+        #: start. It's good place to do initialization.
+        self.on_start_funcs = []
+
+        #: A list of functions that will be called at the beginning of the
+        #: request 
+        self.before_request_funcs = []
 
         self.after_request_funcs = []
         self.teardown_request_funcs = []
@@ -78,9 +84,6 @@ class FlaskyApp(object):
         #: decorator
         self.error_handlers = {None: default_error_handler_func}
 
-        #: A list of functions that will be called at the beginning of the
-        #: request
-        self.before_request_funcs = []
 
         self.settings = settings
         self.option_files = []

@@ -66,8 +66,11 @@ class FlaskyApp(object):
         #: start. It's good place to do initialization.
         self.on_start_funcs = []
 
-        #: A list of functions that will be called at the beginning of the
-        #: request 
+        #: A list of functions that will be executed before every request.
+        #: It can be used to implement cross-cutting concerns(logging,
+        #: authenticaiton etc..)
+        #: 
+        #: To register a function use :meth:`before_request`
         self.before_request_funcs = []
 
         self.after_request_funcs = []

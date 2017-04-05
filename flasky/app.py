@@ -92,12 +92,15 @@ class FlaskyApp(object):
         #: To register an error handler, use the :meth:`error_handler`
         #: decorator
         self.error_handlers = {None: default_error_handler_func}
-
+        
+        #: A list of functions which will be executed after request no matter
+        #: what happens.
+        #: To register an teardown_function, use the 
+        #: :meth:`on_teardown_request` function
         self.teardown_request_funcs = []
-        self.user_loader_func = None
-        self.host_definitions = OrderedDict()
-        self.endpoints = OrderedDict()
 
+        #: TODO: delete this userloader function
+        self.user_loader_func = None
 
         #: A error specific handler registry. Key will be type of error and None
         #: type will be used as default error handler. 
@@ -105,6 +108,11 @@ class FlaskyApp(object):
         #: To register an error handler, use the :meth:`error_handler`
         #: decorator
         self.error_handlers = {None: default_error_handler_func}
+
+        self.host_definitions = OrderedDict()
+        self.endpoints = OrderedDict()
+
+
 
 
         self.settings = settings

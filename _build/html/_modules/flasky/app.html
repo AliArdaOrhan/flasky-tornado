@@ -1,0 +1,507 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>flasky.app &#8212; Flasky 0.0.25 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.0.25',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for flasky.app</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Flasky.app module implements the tornado.web.Application wrapper</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">asyncio</span> <span class="k">import</span> <span class="n">iscoroutinefunction</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="k">import</span> <span class="n">ThreadPoolExecutor</span>
+
+<span class="kn">from</span> <span class="nn">tornado.web</span> <span class="k">import</span> <span class="n">Application</span><span class="p">,</span> <span class="n">StaticFileHandler</span>
+<span class="kn">from</span> <span class="nn">tornado.ioloop</span> <span class="k">import</span> <span class="n">IOLoop</span>
+
+<span class="kn">from</span> <span class="nn">.errors</span> <span class="k">import</span> <span class="n">ConfigurationError</span><span class="p">,</span> <span class="n">default_error_handler_func</span>
+<span class="kn">from</span> <span class="nn">.handler</span> <span class="k">import</span> <span class="n">DynamicHandler</span>
+<span class="kn">from</span> <span class="nn">.di</span> <span class="k">import</span> <span class="n">DIContainer</span>
+<span class="kn">from</span> <span class="nn">.cache</span> <span class="k">import</span> <span class="n">CacheManager</span>
+<span class="kn">from</span> <span class="nn">.scheduler</span> <span class="k">import</span> <span class="n">Scheduler</span>
+<span class="kn">from</span> <span class="nn">.helpers</span> <span class="k">import</span> <span class="n">_HandlerBoundObject</span>
+<span class="kn">from</span> <span class="nn">.parameters</span> <span class="k">import</span> <span class="n">ParameterResolver</span>
+
+
+<div class="viewcode-block" id="FlaskyApp"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp">[docs]</a><span class="k">class</span> <span class="nc">FlaskyApp</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Bant object provides a convenient API to configure</span>
+<span class="sd">    :class:`~tornado.web.Application` It acts as a container for all</span>
+<span class="sd">    plugins, crosscutting concern functions, objects and settings.</span>
+<span class="sd">    On invocation of run method, Bant instance registers</span>
+<span class="sd">    :class:`~flasky.handler.DynamicHandler` classes for every endpoint that</span>
+<span class="sd">    is defined by user.</span>
+
+<span class="sd">    Bant instance might be created at the :file:`__init__.py` of your package.</span>
+<span class="sd">    Another approach might be creating initialization closures to init</span>
+<span class="sd">    API functions. For more information please refer to :ref: ::</span>
+
+<span class="sd">        from bant import Bant</span>
+<span class="sd">        app = Bant(**settings)</span>
+
+
+<span class="sd">    :param ioloop: IOLoop that will be used by application. By default</span>
+<span class="sd">                   Bant application uses :class:`asyncio.BaseEventLoop`</span>
+
+<span class="sd">    :param settings: Application specific settings.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">#: The class for used as object container</span>
+    <span class="c1">#: See :class:`~flasky.DIContainer`</span>
+    <span class="c1">#: TODO: This fill be deleted</span>
+    <span class="n">di_class</span> <span class="o">=</span> <span class="n">DIContainer</span>
+
+    <span class="c1">#: The class for used as parameter resolver</span>
+    <span class="c1">#: See :class: `~flasky.parameters.ParameterResolver`</span>
+    <span class="c1">#: TODO: This will be deleted</span>
+    <span class="n">parameter_resolver_class</span> <span class="o">=</span> <span class="n">ParameterResolver</span>
+
+    <span class="c1">#: The class for used as cache manager</span>
+    <span class="c1">#: See :class: `~flasky.cache.CacheManager`</span>
+    <span class="c1">#: TODO: This will be deleted</span>
+    <span class="n">cache_manager_class</span> <span class="o">=</span> <span class="n">CacheManager</span>
+
+    <span class="c1">#: Default plugins which will be loaded at the initialization of FlaskyApp.</span>
+    <span class="c1">#: Users might manipulate the value of this list and prevent the loading of</span>
+    <span class="c1">#: module</span>
+    <span class="n">default_plugins</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="s2">&quot;di&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;parameters&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;caches&quot;</span>
+            <span class="p">]</span>
+
+    <span class="c1">#: The name of the logger to use.</span>
+    <span class="n">logger_name</span> <span class="o">=</span> <span class="s2">&quot;flasky.logger&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ioloop</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+
+        <span class="c1">#: :class:`tornado.ioloop.IOLoop` which will be used to run</span>
+        <span class="c1">#: application. Default ioloop class is</span>
+        <span class="c1">#: :class:`tornado.asyncio.AsyncIOMainLoop`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ioloop</span> <span class="o">=</span> <span class="n">ioloop</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ioloop</span><span class="p">()</span>
+
+        <span class="c1">#: Please look :meth:`~build_app`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_builded</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1">#: The debug flag. This flag will be passed to tornado.Application</span>
+        <span class="c1">#: If the debug flag set True, Application will be reload on every</span>
+        <span class="c1">#: if code changes detected and Application will spit detailed</span>
+        <span class="c1">#: logging information.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1">#: Configuration dictionary, there might be better implementation for</span>
+        <span class="c1">#: this in future versions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">settings</span> <span class="o">=</span> <span class="n">settings</span>
+
+        <span class="c1">#: :class:`tornado.web.Application` instance for this flaskyApp.</span>
+        <span class="c1">#: This instance will be injected to :class:`handler.DynamicHandler`</span>
+        <span class="c1">#: TODO: change this variable name to tornado_app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1">#: List of functions which will be runned before any request</span>
+        <span class="c1">#: will be handled. This functions might be used</span>
+        <span class="c1">#: for any initialization routine</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">on_start_funcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#: A list of functions which will be called at the beginning of the</span>
+        <span class="c1">#: request. Before request functions can be used to perform common</span>
+        <span class="c1">#: cross-cutting concerns (logging, authorization etc.)</span>
+        <span class="c1">#: To register a function use the :meth:`before_request` decorator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">before_request_funcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#: A list of functions which will be called after the request handled</span>
+        <span class="c1">#: by handler function. Function should take 2 parameters, a</span>
+        <span class="c1">#: :class:`~tornado.web.RequestHandler` instance and endpoint</span>
+        <span class="c1">#: definition.</span>
+        <span class="c1">#:</span>
+        <span class="c1">#: **Warning**: These functions will not be called if any error occurs</span>
+        <span class="c1">#: during the execution of handler. To run piece of code after request</span>
+        <span class="c1">#: in every circumstances please please check :meth:`teardown_request`</span>
+        <span class="c1">#:</span>
+        <span class="c1">#: To register a function use the :meth:`after_request` decorator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">after_request_funcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#: A list of functions which will be called after request is handled</span>
+        <span class="c1">#: this function will be called even if any error exists on handler</span>
+        <span class="c1">#: function. This method can :meth:`on_teardown_request`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">teardown_request_funcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#: A error specific handler registry. Key will be</span>
+        <span class="c1">#: type of error and None type will be used as</span>
+        <span class="c1">#: default error handler.</span>
+        <span class="c1">#:</span>
+        <span class="c1">#: To register an error handler, use the :meth:`error_handler`</span>
+        <span class="c1">#: decorator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">error_handlers</span> <span class="o">=</span> <span class="p">{</span><span class="kc">None</span><span class="p">:</span> <span class="n">default_error_handler_func</span><span class="p">}</span>
+
+        <span class="c1">#: Registered handler definitions</span>
+        <span class="c1">#: All handlers registered under a tree which path might be accessed</span>
+        <span class="c1">#: like this::</span>
+        <span class="c1">#:</span>
+        <span class="c1">#:      handler_function =</span>
+        <span class="c1">#:          self.host_definitions[&#39;0.0.0.0&#39;][&#39;/api/token&#39;][&#39;POST&#39;]</span>
+        <span class="c1">#:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+        <span class="c1">#: Registered static file handlers, on build time this definitions</span>
+        <span class="c1">#: will be converted to :class:`tornado.web.StaticFileHandler`. You</span>
+        <span class="c1">#: can serve static file like this::</span>
+        <span class="c1">#:</span>
+        <span class="c1">#:      from flasky.app import FlaskyApp</span>
+        <span class="c1">#:</span>
+        <span class="c1">#:      app = FlaskyApp()</span>
+        <span class="c1">#:      app.serve_static_file(&quot;/static/([^/]+)&quot;, &quot;path/to/static/file&quot;)</span>
+        <span class="c1">#:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">static_file_handler_definitions</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#: Executor which will be injected to handlers, max_worker_count of</span>
+        <span class="c1">#: settings might be used to manage size of ThreadPoolExecutor.</span>
+        <span class="c1">#: Default value is 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">executor</span> <span class="o">=</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span>
+                <span class="n">max_workers</span><span class="o">=</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;max_worker_count&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="c1">#: Built-in plugins</span>
+        <span class="c1">#: TODO: Implement plugin mechanisms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">di</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">di_class</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameter_resolver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_resolver_class</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_manager_class</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scheduler</span> <span class="o">=</span> <span class="n">Scheduler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ioloop</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_ioloop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">tornado.platform.asyncio</span> <span class="k">import</span> <span class="n">AsyncIOMainLoop</span>
+        <span class="n">AsyncIOMainLoop</span><span class="p">()</span><span class="o">.</span><span class="n">install</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ioloop</span> <span class="o">=</span> <span class="n">IOLoop</span><span class="o">.</span><span class="n">current</span><span class="p">()</span>
+
+<div class="viewcode-block" id="FlaskyApp.api"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.api">[docs]</a>    <span class="k">def</span> <span class="nf">api</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s1">&#39;.*$&#39;</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A decorator which will be used to register a handler for given</span>
+<span class="sd">        endpoint. Parameters are default :class:`tornado.web.RequestHandler`</span>
+<span class="sd">        parameters. Regexes can be used at endpoint definition and will be</span>
+<span class="sd">        injected to as second parameter::</span>
+
+<span class="sd">            @app.api(</span>
+<span class="sd">                endpoint=&quot;/api/user&quot;,</span>
+<span class="sd">                method=&quot;POST&quot;</span>
+<span class="sd">            )</span>
+<span class="sd">            async def create_user(handler, *args, **kwargs):</span>
+<span class="sd">                handler.write(&quot;hello world&quot;)</span>
+
+<span class="sd">            @app.api(</span>
+<span class="sd">                endpoint=&quot;api/user&quot;,</span>
+<span class="sd">                method=&quot;GET&quot;</span>
+<span class="sd">            )</span>
+<span class="sd">            async def get_users(handler, *args, **kwargs):</span>
+<span class="sd">                handler.write({&quot;user&quot;: &quot;Asimov&quot;})</span>
+
+<span class="sd">        :param host: Host Address in which this handler function will be</span>
+<span class="sd">                     registered.</span>
+
+<span class="sd">        :param endpoint: Endpoint address for which this handler function</span>
+<span class="sd">                         will be executed.</span>
+
+<span class="sd">        :param method: HTTP Method(POST, GET, PUT etc..) for which</span>
+<span class="sd">                       this handler function will be executed</span>
+
+<span class="sd">        :param options:&quot; Options that will be attached to handler function</span>
+<span class="sd">                        all the way throught middleware pipeline</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">host_definition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">host_definition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">host_definition</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span><span class="p">[</span><span class="n">host</span><span class="p">]</span> <span class="o">=</span> <span class="n">host_definition</span>
+
+        <span class="n">endpoint_definition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span><span class="p">[</span><span class="n">host</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">endpoint_definition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">endpoint_definition</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">supported_method</span> <span class="ow">in</span> <span class="n">DynamicHandler</span><span class="o">.</span><span class="n">SUPPORTED_METHODS</span><span class="p">:</span>
+                <span class="n">endpoint_definition</span><span class="p">[</span><span class="n">supported_method</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="n">host_definition</span><span class="p">[</span><span class="n">endpoint</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint_definition</span>
+
+        <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">iscoroutinefunction</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="n">message</span><span class="o">=</span><span class="s2">&quot;Function [</span><span class="si">{}</span><span class="s2">] should be&quot;</span>
+                                <span class="s2">&quot;coroutine in order to use.&quot;</span>
+                                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="vm">__name__</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">endpoint</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Endpoint should be provided.&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">method</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="s1">&#39;Method should be provided&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">DynamicHandler</span><span class="o">.</span><span class="n">SUPPORTED_METHODS</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigurationError</span><span class="p">(</span>
+                        <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Unsuppoterted method </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">method</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span><span class="p">[</span><span class="n">host</span><span class="p">][</span><span class="n">endpoint</span><span class="p">][</span><span class="n">method</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;function&#39;</span><span class="p">:</span> <span class="n">f</span>
+            <span class="p">}</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span><span class="p">[</span><span class="n">host</span><span class="p">][</span><span class="n">endpoint</span><span class="p">][</span><span class="n">method</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">f</span>
+
+        <span class="k">return</span> <span class="n">decorator</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.on_start"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.on_start">[docs]</a>    <span class="k">def</span> <span class="nf">on_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Registers a function to be run on build time of application</span>
+
+<span class="sd">        Function should take :class:BantApp as parameter. This is a good place</span>
+<span class="sd">        to initialize the common objects, setting up logging vs::</span>
+
+<span class="sd">            @app.on_start</span>
+<span class="sd">            async def initialize(app):</span>
+<span class="sd">                app.logger = logging.get(&quot;application_logger&quot;)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">on_start_funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.before_request"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.before_request">[docs]</a>    <span class="k">def</span> <span class="nf">before_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Registers a function to run before each request handler.</span>
+
+<span class="sd">        Function should take 2 argument, an instance of</span>
+<span class="sd">        :class:`~handler.DynamicHandler` and dictionary</span>
+<span class="sd">        of endpoint definition::</span>
+
+<span class="sd">            @app.before_request</span>
+<span class="sd">            async def check_authorization(handler, handler_definition):</span>
+<span class="sd">                if not handler.request.headers.get(&#39;Authorization&#39;, None):</span>
+<span class="sd">                    raise UnauthorizedAccessError()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">before_request_funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.after_request"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.after_request">[docs]</a>    <span class="k">def</span> <span class="nf">after_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Registers a function to run after each request handler.</span>
+
+<span class="sd">        Function should take 2 argument an instance of</span>
+<span class="sd">        :class:`handler.DynamicHandler` and :type:`dict`</span>
+<span class="sd">        of endpoint definition::</span>
+
+<span class="sd">            @app.after_request</span>
+<span class="sd">            async def add_cors_headers</span>
+<span class="sd">                handler.set_header(&quot;Allow-Origin&quot;, &quot;*&quot;)</span>
+
+<span class="sd">        It&#39;s important to know that, if any error raised during pipeline,</span>
+<span class="sd">        after request functions WILL NOT BE EXECUTED.</span>
+
+<span class="sd">        To execute a function after pipeline in every circumstances, use</span>
+<span class="sd">        :meth:`teardown_request`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">after_request_funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.error_handler"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.error_handler">[docs]</a>    <span class="k">def</span> <span class="nf">error_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">err_type</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Registers a function for given error type.::</span>
+
+<span class="sd">            @app.error_handler(MongoError)</span>
+<span class="sd">            async def handle_mongo_error(handler, error, endpoint_definition):</span>
+<span class="sd">                handler.clear()</span>
+<span class="sd">                handler.write(&quot;Internal error occured&quot;)</span>
+<span class="sd">                handler.set_status(500)</span>
+
+<span class="sd">        :param err_type: an exception type which will be handled by this</span>
+<span class="sd">                         error handler function. If given parameter is None,</span>
+<span class="sd">                         handler will be used as default error handler.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">error_handlers</span><span class="p">[</span><span class="n">err_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span>
+            <span class="k">return</span> <span class="n">f</span>
+        <span class="k">return</span> <span class="n">decorator</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.serve_static_file"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.serve_static_file">[docs]</a>    <span class="k">def</span> <span class="nf">serve_static_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pattern</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Serves matched files from given path:</span>
+
+<span class="sd">        app.serve_static_file(&quot;*.png&quot;, &quot;/path/to/png/files&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pattern</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Pattern should be specified...&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Path should be specified.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">static_file_handler_definitions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">pattern</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">path</span>
+        <span class="p">}))</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.build_app"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.build_app">[docs]</a>    <span class="k">def</span> <span class="nf">build_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Building application means, creation of</span>
+<span class="sd">        :class:`tornado.web.Application` instance, creation of</span>
+<span class="sd">        :class:`handler.DynamicHandler` routes, adding routes</span>
+<span class="sd">        into tornado application, registration of</span>
+<span class="sd">        :class:`tornado.web.StaticFileHandler`s</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">Application</span><span class="p">(</span><span class="n">default_host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">settings</span><span class="p">)</span>
+        <span class="n">app_ctx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_app_ctx</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">host</span><span class="p">,</span> <span class="n">host_definition</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">host_definitions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">endpoint_definition</span> <span class="ow">in</span> <span class="n">host_definition</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">handler</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_dynamic_handlers</span><span class="p">(</span>
+                        <span class="n">host</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">endpoint_definition</span><span class="p">,</span> <span class="n">app_ctx</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">add_handlers</span><span class="p">(</span><span class="o">*</span><span class="n">handler</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">url_patttern</span><span class="p">,</span> <span class="n">static_file_handler_settings</span> \
+                <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">static_file_handler_definitions</span><span class="p">:</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">add_handlers</span><span class="p">(</span>
+                    <span class="s2">&quot;.*$&quot;</span><span class="p">,</span>
+                    <span class="p">[(</span><span class="n">url_patttern</span><span class="p">,</span>
+                      <span class="n">StaticFileHandler</span><span class="p">,</span>
+                      <span class="n">static_file_handler_settings</span><span class="p">)])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_builded</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+    <span class="k">def</span> <span class="nf">_create_dynamic_handlers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span>
+                                 <span class="n">endpoint_definition</span><span class="p">,</span> <span class="n">app_ctx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Creates dynamic handler and sets all pipeline functions</span>
+<span class="sd">        as a dictionary which will be injected to dynamic handler.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">host</span><span class="p">,</span> <span class="p">[</span>
+                <span class="p">(</span><span class="n">endpoint</span><span class="p">,</span>
+                 <span class="n">DynamicHandler</span><span class="p">,</span>
+                 <span class="nb">dict</span><span class="p">(</span>
+                     <span class="n">endpoint_definition</span><span class="o">=</span><span class="n">endpoint_definition</span><span class="p">,</span>
+                     <span class="n">endpoint</span><span class="o">=</span><span class="n">endpoint</span><span class="p">,</span>
+                     <span class="n">after_request_funcs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">after_request_funcs</span><span class="p">,</span>
+                     <span class="n">error_handler_funcs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">error_handlers</span><span class="p">,</span>
+                     <span class="n">before_request_funcs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">before_request_funcs</span><span class="p">,</span>
+                     <span class="n">run_in_executor</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">,</span>
+                     <span class="n">teardown_request_funcs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">teardown_request_funcs</span><span class="p">,</span>
+                     <span class="n">app_ctx</span><span class="o">=</span><span class="n">app_ctx</span>
+                     <span class="p">)</span>
+                 <span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">_build_app_ctx</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates application context object.</span>
+
+<span class="sd">        This application context will be used by default</span>
+<span class="sd">        plugins and will work as a namespace for external uses.</span>
+
+<span class="sd">        Rationale behind this approach is that we don&#39;t want to clutter</span>
+<span class="sd">        :class:`handler.DynamicHandler` instances.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ApplicationContext</span><span class="p">()</span>
+
+<div class="viewcode-block" id="FlaskyApp.run"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">8888</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Starts an HTTP Server on the given port and host.</span>
+
+<span class="sd">        This function also executes :attr:`on_start_funcs` and calls run</span>
+<span class="sd">        method of :class:`scheduler.Scheduler`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_builded</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">build_app</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">on_start_func</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">on_start_funcs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ioloop</span><span class="o">.</span><span class="n">run_sync</span><span class="p">(</span><span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">on_start_func</span><span class="p">,</span> <span class="bp">self</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scheduler</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="n">port</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ioloop</span><span class="o">.</span><span class="n">start</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.run_in_executor"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.run_in_executor">[docs]</a>    <span class="k">def</span> <span class="nf">run_in_executor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;runs given function in another thread.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="FlaskyApp.add_tornado_handler"><a class="viewcode-back" href="../../index.html#flasky.app.FlaskyApp.add_tornado_handler">[docs]</a>    <span class="k">def</span> <span class="nf">add_tornado_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host_pattern</span><span class="p">,</span> <span class="n">host_handlers</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; To add any handler which extends</span>
+<span class="sd">        :class:`tornado.web.RequestHandler` class.</span>
+
+<span class="sd">        :param host: Hostname to listen to</span>
+<span class="sd">        :param handlers: list of tuples. Tuples are consist of URL pattern,</span>
+<span class="sd">                         handler class, handler settings. For more information</span>
+<span class="sd">                         please check</span>
+<span class="sd">                         :meth:`tornado.web.Application.add_handlers`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">add_handlers</span><span class="p">(</span><span class="n">host_pattern</span><span class="p">,</span> <span class="n">host_handlers</span><span class="p">)</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">ApplicationContext</span><span class="p">(</span><span class="n">_HandlerBoundObject</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, ali arda orhan.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

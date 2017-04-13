@@ -3,6 +3,7 @@ from tornado.testing import AsyncHTTPTestCase
 
 
 class FlaskyTestCase(AsyncHTTPTestCase):
+
     is_initialized = False
 
     def setUp(self):
@@ -17,7 +18,4 @@ class FlaskyTestCase(AsyncHTTPTestCase):
         return app.app
 
     def create_app(self):
-        raise NotImplemented
-
-    def initialize(self):
         raise NotImplemented

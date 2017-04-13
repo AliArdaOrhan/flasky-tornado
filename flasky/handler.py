@@ -1,33 +1,50 @@
 import json
 
 from asyncio import iscoroutinefunction
-from concurrent.futures import ThreadPoolExecutor
-
 import tornado.web
 
 from flasky.errors import BadRequestError, MethodIsNotAllowed
 
 
-# noinspection PyAttributeOutsideInit,PyAbstractClass
 class DynamicHandler(tornado.web.RequestHandler):
+    """DynamicHandler is the main class where magic happens.
 
-    executor_pool = ThreadPoolExecutor()
+    In simplest word, handler provides convenient methods to access request
+    object, methods to prepare response and executes all the pipeline from
+    top to bottom.
+
+    DynamicHandler class delegates all HTTP calls to
+    :meth:`~DynamicHandler._handle` method
+    to execute programatic pipeline.
+
+    Any plugin may have access current request by hooks provided by
+    Bant class and may manipulate it to provide new functionalities.
+    """
 
     def initialize(self, endpoint=None, endpoint_definition=None,
-                   after_request_funcs=None, before_request_funcs=None, user_loader_func=None,
-                   error_handler_funcs=None, run_in_executor=None, teardown_request_funcs = None,
-                   caches=None, settings=None, app_ctx=None):
+                   after_request_funcs=None, before_request_funcs=None,
+                   error_handler_funcs=None, run_in_executor=None,
+                   teardown_request_funcs=None, settings=None,
+                   app_ctx=None):
+        #: Context object is basically a namespace for plugins. Plugin
+        #: developers are free to add any arbitrary number of parameters
+        #: to context object.
+        #:
+        #: Rationale behind this approach is, we don't want to
+        #: interfere tornado's RequestHandler class.
         self.context = app_ctx
-        #: Flasky app.
+
+        #: Run in executor function provided by Bant
         self.run_in_executor = run_in_executor
 
-        #: A dictionary all handlers will be registered. Keys will be method of handler.
+        #: Endpoint definitions for this endpoint.
+        #: Endpoint definition may contain handler functions for GET, POST,
+        #: PUT, DELETE, PATCH, OPTIONS methods.
         self.endpoint_definition = endpoint_definition
 
         #: Endpoint of this handler for logging purposes
         self.endpoint = endpoint
 
-        #: List of functions will be executed after request is handled.
         self.after_request_funcs = after_request_funcs or []
 
         self.before_request_funcs = before_request_funcs or []
@@ -36,16 +53,9 @@ class DynamicHandler(tornado.web.RequestHandler):
 
         self.teardown_request_funcs = teardown_request_funcs or []
 
-        self.user_loader_func = user_loader_func
-
-        self.user = None
-
         self._body_as_json = None
 
         self.app_settings = settings
-
-        for key, cache in caches.items():
-            setattr(self, key, cache)
 
     async def post(self, *args, **kwargs):
         await self._handle('POST', *args, **kwargs)
@@ -70,26 +80,21 @@ class DynamicHandler(tornado.web.RequestHandler):
 
     async def _handle(self, method, *args, **kwargs):
         method_definition = self._get_method_definition(method)
-
         try:
             await self._do_handle(method_definition, *args, **kwargs)
         except BaseException as e:
             error_handler = self.error_handler_funcs[type(e)] \
                             if type(e) in self.error_handler_funcs \
                             else self.error_handler_funcs[None]
+            await error_handler(self, e, method_definition)
 
-            await error_handler(self, e)
-
-            for teardown_funcs in self.teardown_request_funcs:
-                await teardown_funcs(self, method_definition)
+        for teardown_funcs in self.teardown_request_funcs:
+            await teardown_funcs(self, method_definition)
 
     def _get_method_definition(self, method_name):
         return self.endpoint_definition.get(method_name, None)
 
     async def _do_handle(self, method_definition, *args, **kwargs):
-        if self.user_loader_func:
-            self.user = await self.user_loader_func(self, method_definition)
-
         handler_function = method_definition.get('function', None)
         if not handler_function:
             raise MethodIsNotAllowed()
@@ -100,7 +105,6 @@ class DynamicHandler(tornado.web.RequestHandler):
             else:
                 before_request_func(self, method_definition)
 
-
         await handler_function(self, *args, **kwargs)
 
         for after_request_func in self.after_request_funcs:
@@ -110,14 +114,11 @@ class DynamicHandler(tornado.web.RequestHandler):
         throw_exc = kwargs.pop("throw_exc", False)
         if not self._body_as_json:
             try:
-                self._body_as_json = json.loads(self.request.body.decode('utf-8'), **kwargs)
+                self._body_as_json = json.loads(
+                        self.request.body.decode('utf-8'), **kwargs)
             except json.JSONDecodeError as e:
                 if throw_exc:
-                    raise BadRequestError('Expected json but not found. msg={}'.format(e.args[0]), reason=e) from e
+                    raise BadRequestError('Expected json but not found. msg={}'
+                                          .format(e.args[0]), reason=e) from e
                 return None
         return self._body_as_json
-
-
-
-
-

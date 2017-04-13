@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger("flasky.errors")
 
+
 class FlaskyTornError(BaseException):
 
     def __init__(self, status_code=None, message=None, reason=None):
@@ -10,15 +11,18 @@ class FlaskyTornError(BaseException):
         self.message = message
         self.reason = reason
 
+
 class ResourceNotFoundError(FlaskyTornError):
 
     def __init__(self, message='Resource not found', reason=None):
         super().__init__(status_code=404, message=message, reason=reason)
 
+
 class ResourceAlreadyExistsError(FlaskyTornError):
 
     def __init__(self, message="Resource is already exists.", reason=None):
         super().__init__(status_code=409, message=message, reason=reason)
+
 
 class ConfigurationError(FlaskyTornError):
 
@@ -27,6 +31,7 @@ class ConfigurationError(FlaskyTornError):
 
     def __str__(self):
         return self.message
+
 
 class BadRequestError(FlaskyTornError):
 
@@ -43,24 +48,31 @@ class InvalidTokenError(FlaskyTornError):
 class TokenBlacklistedError(FlaskyTornError):
 
     def __init__(self):
-        super().__init__(status_code=403, message='Token is already blacklisted...')
+        super().__init__(
+                status_code=403,
+                message='Token is already blacklisted...')
+
 
 class MethodIsNotAllowed(FlaskyTornError):
 
     def __init__(self):
         super().__init__(status_code=405, message='Method is not allowed.')
 
+
 class AuthorizationError(FlaskyTornError):
 
     def __init__(self, message, reason=None):
         super().__init__(status_code=403, message=message, reason=reason)
 
+
 class ParameterIsRequiredError(FlaskyTornError):
     def __init__(self, required_parameter=None, service_name=None):
         super().__init__(status_code=400, message="Parameter is required for"
-                        " this action".format(required_parameter,service_name))
+                         "this action".format(
+                             required_parameter, service_name))
 
-async def default_error_handler_func(handler, err):
+
+async def default_error_handler_func(handler, err, definition):
 
     if isinstance(err, FlaskyTornError):
         logger.exception(err.message)

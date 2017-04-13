@@ -3,6 +3,7 @@ import json
 from flasky.errors import FlaskyTornError, ConfigurationError
 from .helpers import _HandlerBoundObject
 
+
 class ParameterRequiredError(FlaskyTornError):
 
     def __init__(self, message):
@@ -18,7 +19,7 @@ class ParameterResolver(object):
     def bind_params(self, handler, method_definition):
         parameter_definitions = method_definition.get('params', [])
 
-        if not isinstance(parameter_definitions, (list,set)):
+        if not isinstance(parameter_definitions, (list, set)):
             parameter_definitions = set(parameter_definitions)
 
         parameter_map = {}
@@ -29,17 +30,20 @@ class ParameterResolver(object):
             raise ConfigurationError("Handler object should have context field \
                     set before any other plugin work")
 
-        setattr(handler.context, "parameters", _HandlerBoundObject(**parameter_map))
+        setattr(handler.context, "parameters",
+                _HandlerBoundObject(**parameter_map))
 
 
 class ResolvableParameter(object):
 
-    def __init__(self, parameter_name, is_required=False, default=None, typ=str):
+    def __init__(self, parameter_name, is_required=False,
+                 default=None, typ=str):
         if parameter_name is None:
             raise ConfigurationError('Parameter name must not be None...')
 
-        if not typ in {str, bool, float, int, list, set}:
-            raise ConfigurationError("Parameter<{}> type must be in bool, str, int, float"
+        if typ not in {str, bool, float, int, list, set}:
+            raise ConfigurationError(
+                    "Parameter<{}> type must be in bool, str, int, float"
                     .format(parameter_name))
 
         self.parameter_name = parameter_name
@@ -54,7 +58,8 @@ class ResolvableParameter(object):
             return self.typ(val)
 
         if self.is_required:
-            raise ParameterRequiredError("Parameter-{}- is required but not exists."
+            raise ParameterRequiredError(
+                    "Parameter-{}- is required but not exists."
                     .format(self.parameter_name))
 
         return None
@@ -62,17 +67,24 @@ class ResolvableParameter(object):
     def do_resolve(self, handler):
         raise NotImplemented
 
+
 class QueryParameter(ResolvableParameter):
 
-    def __init__(self, parameter_name, is_required=False, default=None, typ=str):
-        super().__init__(parameter_name, is_required=is_required, default=default, typ=typ)
+    def __init__(self, parameter_name, is_required=False,
+                 default=None, typ=str):
+        super().__init__(parameter_name, is_required=is_required,
+                         default=default, typ=typ)
 
     def do_resolve(self, handler):
-        return handler.get_query_argument(self.parameter_name, default=self.default)
+        return handler.get_query_argument(self.parameter_name,
+                                          default=self.default)
+
 
 class CollectionQueryParameter(ResolvableParameter):
 
-    def __init__(self, parameter_name, is_required=False, default=None, mapper=None):
+    def __init__(self, parameter_name, is_required=False,
+                 default=None, mapper=None):
+
         super().__init__(parameter_name, is_required, default, typ=list)
         self.mapper = mapper
 

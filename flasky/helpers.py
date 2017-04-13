@@ -29,6 +29,7 @@ def maybe_coroutine(f):
     return wrapper
 
 
+#: TODO delete these functions
 def object_hook(json_dict):
     for (key, value) in json_dict.items():
         try:
@@ -55,4 +56,3 @@ def bson_to_json(o):
     elif isinstance(o, decimal.Decimal):
         return str(o)
     return default(o)
-

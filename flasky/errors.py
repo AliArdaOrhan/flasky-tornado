@@ -73,7 +73,6 @@ class ParameterIsRequiredError(FlaskyTornError):
 
 
 async def default_error_handler_func(handler, err, definition):
-
     if isinstance(err, FlaskyTornError):
         logger.exception(err.message)
         handler.clear()

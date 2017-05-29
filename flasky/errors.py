@@ -6,16 +6,20 @@ logger = logging.getLogger("flasky.errors")
 
 class FlaskyTornError(BaseException):
 
-    def __init__(self, status_code=None, message=None, reason=None):
+    def __init__(self, status_code=None, err_code=None, message=None, reason=None):
         self.status_code = status_code
+        self.err_code = err_code or "errors.InternalError"
         self.message = message
         self.reason = reason
 
 
 class ResourceNotFoundError(FlaskyTornError):
 
-    def __init__(self, message='Resource not found', reason=None):
-        super().__init__(status_code=404, message=message, reason=reason)
+    def __init__(self, message='Resource not found', reason=None, err_code="errors.resourceNotFound"):
+        super().__init__(status_code=404,
+                         message=message,
+                         reason=reason,
+                         err_code=err_code)
 
 
 class ResourceAlreadyExistsError(FlaskyTornError):
@@ -77,8 +81,11 @@ async def default_error_handler_func(handler, err, definition):
         logger.exception(err.message)
         handler.clear()
         handler.write(json.dumps({
-            'status': err.status_code,
-            'message': err.message
+            "error": {
+                'status': err.status_code,
+                'message': err.message,
+                'code': err.err_code
+            }
         }))
         handler.set_status(err.status_code)
         handler.set_header("Content-Type", "application/json")

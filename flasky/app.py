@@ -340,10 +340,12 @@ class FlaskyApp(object):
         app_ctx = self._build_app_ctx()
 
         for host, host_definition in self.host_definitions.items():
+            handlers = []
             for endpoint, endpoint_definition in host_definition.items():
                 handler = self._create_dynamic_handlers(
                         host, endpoint, endpoint_definition, app_ctx)
-                self.app.add_handlers(*handler)
+                handlers.append(*handler[1])
+            self.app.add_handlers(host, handlers)
 
         for url_patttern, static_file_handler_settings \
                 in self.static_file_handler_definitions:

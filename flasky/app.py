@@ -4,7 +4,7 @@
 """
 
 import functools
-from asyncio import iscoroutinefunction
+from asyncio import iscoroutinefunction, futures
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
@@ -408,7 +408,8 @@ class FlaskyApp(object):
     def run_in_executor(self, func, *args):
         """runs given function in another thread.
         """
-        return self.executor.submit(functools.partial(func, *args))
+        return futures.wrap_future(self.executor.submit(functools.partial(func, *args),
+                                    ioloop=self.ioloop.asyncio_loop))
 
     def add_tornado_handler(self, host_pattern, host_handlers):
         """ To add any handler which extends

@@ -408,8 +408,8 @@ class FlaskyApp(object):
     def run_in_executor(self, func, *args):
         """runs given function in another thread.
         """
-        return futures.wrap_future(self.executor.submit(functools.partial(func, *args),
-                                    ioloop=self.ioloop.asyncio_loop))
+        return futures.wrap_future(self.executor.submit(functools.partial(func, *args)),
+                                    loop=self.ioloop.asyncio_loop)
 
     def add_tornado_handler(self, host_pattern, host_handlers):
         """ To add any handler which extends

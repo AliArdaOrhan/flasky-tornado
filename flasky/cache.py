@@ -19,7 +19,6 @@ class CacheManager(object):
         self.caches = []
         app.on_start(self.on_start_hook)
         app.before_request(self.before_request_hook)
-        futures
 
     def register(self, cache_name=None, interval=None, run_immediate=False):
         if not cache_name:

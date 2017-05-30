@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='FlaskyTornado',
-    version="0.0.31",
+    version="0.0.32",
     license='BSD',
     author='Ali Arda Orhan',
     author_email='arda.orhan@dogantv.com.tr',

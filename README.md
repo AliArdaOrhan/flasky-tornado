@@ -26,7 +26,7 @@ Quark-Flasky applications are programmed via set of decorators.
 
 ```python
 
-'''app.ap is register functions which is used to define endpoint. DynamicHandler, positional and named arguments are passed in when endpoint is executed.
+'''app.api is register functions which is used to define endpoint. DynamicHandler, positional and named arguments are passed in when endpoint is executed.
 
  Parameters:
     host: Virtual host parameter which takes in regex as the first argument.

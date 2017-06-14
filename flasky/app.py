@@ -45,7 +45,7 @@ class FlaskyApp(object):
 
     #: The class for used as object container
     #: See :class:`~flasky.DIContainer`
-    #: TODO: This fill be deleted
+    #: TODO: This will be deleted
     di_class = DIContainer
 
     #: The class for used as parameter resolver
@@ -184,7 +184,7 @@ class FlaskyApp(object):
                 handler.write("hello world")
 
             @app.api(
-                endpoint="api/user",
+                endpoint="/api/user",
                 method="GET"
             )
             async def get_users(handler, *args, **kwargs):
@@ -320,7 +320,7 @@ class FlaskyApp(object):
         app.serve_static_file("*.png", "/path/to/png/files")
         """
         if not pattern:
-            raise ValueError('Pattern should be specified...')
+            raise ValueError('Pattern should be specified.')
 
         if path is None:
             raise ValueError('Path should be specified.')

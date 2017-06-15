@@ -3,6 +3,7 @@ import datetime
 
 from flasky.cache import CacheManager, Cache
 from tornado.testing import AsyncTestCase, gen_test
+from unittest.mock import patch
 
 
 class TestCacheManager(unittest.TestCase):
@@ -46,7 +47,7 @@ class TestCache(AsyncTestCase):
 
         self.assertFalse(cache.is_running())
 
-    @unittest.mock.patch.object(Cache, "_create_periodic_callback")
+    @patch.object(Cache, "_create_periodic_callback")
     def test_run_create_call_start_of_periodic_callback_obj(self, mock_func):
         cache_loader_func_mock = unittest.mock.MagicMock()
         periodic_callback_mock = unittest.mock.MagicMock()

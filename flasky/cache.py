@@ -23,11 +23,11 @@ class CacheManager(object):
     def register(self, cache_name=None, interval=None, run_immediate=False):
         if not cache_name:
             raise ConfigurationError(
-                    'Cant register a cache function without a name.')
+                'Cant register a cache function without a name.')
 
         if not interval:
             raise ConfigurationError(
-                    'Cant register cache function without a interval.')
+                'Cant register cache function without a interval.')
 
         def decorator(f):
             self.caches.append(Cache(cache_name, f, interval,
@@ -41,14 +41,14 @@ class CacheManager(object):
     def on_start_hook(self, app):
         for cache in self.caches:
             logger.debug(
-                    "running registered cache<name={}>"
-                    .format(cache.cache_name))
+                "running registered cache<name={}>"
+                .format(cache.cache_name))
             cache.run()
 
     def before_request_hook(self, handler, method_definition):
         if not hasattr(handler, "context"):
             raise ConfigurationError(
-                    "Context object must be set before this plugin works")
+                "Context object must be set before this plugin works")
 
         handler.context.cache = self._build_context()
 
@@ -81,19 +81,19 @@ class Cache(object):
         self.ioloop = ioloop or IOLoop.current()
         self.cb = None
         self.stats = {
-                    "last_run_time": None,
-                    "last_item_count": None,
-                    "last_run_duration": None,
-                    "total_run_count": 0,
-                    "overall_duration": 0
-                }
+            "last_run_time": None,
+            "last_item_count": None,
+            "last_run_duration": None,
+            "total_run_count": 0,
+            "overall_duration": 0
+        }
 
     def _wrap_func(self, f):
         async def wrapper():
             started_at = datetime.datetime.now()
             logging.info(
-                    "Cache<{}> has been started at <{}>."
-                    .format(self.cache_name, started_at))
+                "Cache<{}> has been started at <{}>."
+                .format(self.cache_name, started_at))
             data = await f()
             self.data = data
             self.update_stats(started_at, data)
@@ -115,9 +115,9 @@ class Cache(object):
 
     def _create_periodic_callback(self):
         return PeriodicCallback(
-                self._wrap_func(self.cache_func),
-                self.cache_interval,
-                io_loop=self.ioloop)
+            self._wrap_func(self.cache_func),
+            self.cache_interval,
+            io_loop=self.ioloop)
 
     def is_running(self):
         return self.cb and self.cb.is_running()
@@ -133,12 +133,13 @@ class Cache(object):
         self.stats["total_run_count"] += 1
 
         self.stats["last_run_duration"] = (
-                self.stats["last_run_time"] - util.get_timestamp())
+            self.stats["last_run_time"] - util.get_timestamp())
 
         if isinstance(data, collections.Iterable):
             self.stats["last_item_count"] = len(data)
         else:
             self.stats["last_item_count"] = 1
 
-        self.stats["overall_duration"] = (self.stats["last_run_duration"]
-                                          / self.stats["total_run_count"])
+        self.stats["overall_duration"] = (
+            self.stats["last_run_duration"] / self.stats["total_run_count"]
+        )

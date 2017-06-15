@@ -10,9 +10,11 @@ import flasky.helpers
 
 maybe_coroutine = flasky.helpers.maybe_coroutine
 
+
 @pytest.mark.asyncio
 async def test_normal_function_can_be_used_in_io_loop_when_it_is_wrapped_with_maybe_coroutine():
-    executed = {"value" : False}
+    executed = {"value": False}
+
     def sync_function():
         executed["value"] = True
 
@@ -21,8 +23,3 @@ async def test_normal_function_can_be_used_in_io_loop_when_it_is_wrapped_with_ma
 
     await wrapped_as_coro()
     assert executed["value"]
-
-
-
-
-

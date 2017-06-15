@@ -9,6 +9,7 @@ class _HandlerBoundObject(object):
     """ Purpose of this object is to programatticaly
     configure return value of property accesses
     """
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
@@ -35,24 +36,19 @@ def object_hook(json_dict):
         try:
             json_dict[key] = datetime.datetime.strptime(
                 value, "%Y-%m-%dT%H:%M:%S.%fZ")
-        except:
+        except Exception:
             pass
     return json_dict
 
 
 def bson_to_json(o):
-    if isinstance(o, ObjectId):
+    if isinstance(o, (ObjectId, decimal.Decimal)):
         return str(o)
-    if isinstance(o, datetime.datetime):
+    elif isinstance(o, (datetime.datetime, datetime.date, datetime.time)):
         r = o.isoformat()
-        return r + 'Z'
-    elif isinstance(o, datetime.date):
-        return o.isoformat()
-    elif isinstance(o, datetime.time):
-        r = o.isoformat()
-        if o.microsecond:
-            r = r[:12]
+        if isinstance(o, datetime.time):
+            return r[:12]
+        elif isinstance(o, datetime.datetime):
+            return r + 'Z'
         return r
-    elif isinstance(o, decimal.Decimal):
-        return str(o)
     return default(o)

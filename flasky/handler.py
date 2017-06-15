@@ -84,8 +84,8 @@ class DynamicHandler(tornado.web.RequestHandler):
             await self._do_handle(method_definition, *args, **kwargs)
         except BaseException as e:
             error_handler = self.error_handler_funcs[type(e)] \
-                            if type(e) in self.error_handler_funcs \
-                            else self.error_handler_funcs[None]
+                if type(e) in self.error_handler_funcs \
+                else self.error_handler_funcs[None]
             await error_handler(self, e, method_definition)
 
         for teardown_funcs in self.teardown_request_funcs:
@@ -115,7 +115,7 @@ class DynamicHandler(tornado.web.RequestHandler):
         if not self._body_as_json:
             try:
                 self._body_as_json = json.loads(
-                        self.request.body.decode('utf-8'), **kwargs)
+                    self.request.body.decode('utf-8'), **kwargs)
             except json.JSONDecodeError as e:
                 if throw_exc:
                     raise BadRequestError('Expected json but not found. msg={}'

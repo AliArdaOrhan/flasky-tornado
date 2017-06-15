@@ -4,7 +4,7 @@
 """
 
 import functools
-from asyncio import iscoroutinefunction
+from asyncio import iscoroutinefunction, futures
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
@@ -45,7 +45,7 @@ class FlaskyApp(object):
 
     #: The class for used as object container
     #: See :class:`~flasky.DIContainer`
-    #: TODO: This fill be deleted
+    #: TODO: This will be deleted
     di_class = DIContainer
 
     #: The class for used as parameter resolver
@@ -62,10 +62,10 @@ class FlaskyApp(object):
     #: Users might manipulate the value of this list and prevent the loading of
     #: module
     default_plugins = [
-                "di",
-                "parameters",
-                "caches"
-            ]
+        "di",
+        "parameters",
+        "caches"
+    ]
 
     #: The name of the logger to use.
     logger_name = "flasky.logger"
@@ -155,7 +155,7 @@ class FlaskyApp(object):
         #: settings might be used to manage size of ThreadPoolExecutor.
         #: Default value is 1
         self.executor = ThreadPoolExecutor(
-                max_workers=(settings.get('max_worker_count', None) or 1))
+            max_workers=(settings.get('max_worker_count', None) or 1))
 
         #: Built-in plugins
         #: TODO: Implement plugin mechanisms
@@ -184,7 +184,7 @@ class FlaskyApp(object):
                 handler.write("hello world")
 
             @app.api(
-                endpoint="api/user",
+                endpoint="/api/user",
                 method="GET"
             )
             async def get_users(handler, *args, **kwargs):
@@ -217,22 +217,22 @@ class FlaskyApp(object):
         def decorator(f):
             if not iscoroutinefunction(f):
                 raise ConfigurationError(
-                        message="Function [{}] should be"
-                                "coroutine in order to use."
-                                .format(f.__name__))
+                    message="Function [{}] should be"
+                    "coroutine in order to use."
+                    .format(f.__name__))
 
             if not endpoint:
                 raise ConfigurationError(
-                        message='Endpoint should be provided.')
+                    message='Endpoint should be provided.')
 
             if not method:
                 raise ConfigurationError(
-                        message='Endpoint method(GET, POST etc..)'
-                                'should be provided')
+                    message='Endpoint method(GET, POST etc..)'
+                    'should be provided')
 
             if method not in DynamicHandler.SUPPORTED_METHODS:
                 raise ConfigurationError(
-                        message='Unsuppoterted method {}'.format(method))
+                    message='Unsuppoterted method {}'.format(method))
 
             self.host_definitions[host][endpoint][method] = {
                 'function': f
@@ -320,7 +320,7 @@ class FlaskyApp(object):
         app.serve_static_file("*.png", "/path/to/png/files")
         """
         if not pattern:
-            raise ValueError('Pattern should be specified...')
+            raise ValueError('Pattern should be specified.')
 
         if path is None:
             raise ValueError('Path should be specified.')
@@ -340,19 +340,21 @@ class FlaskyApp(object):
         app_ctx = self._build_app_ctx()
 
         for host, host_definition in self.host_definitions.items():
+            handlers = []
             for endpoint, endpoint_definition in host_definition.items():
                 handler = self._create_dynamic_handlers(
-                        host, endpoint, endpoint_definition, app_ctx)
-                self.app.add_handlers(*handler)
+                    host, endpoint, endpoint_definition, app_ctx)
+                handlers.append(*handler[1])
+            self.app.add_handlers(host, handlers)
 
         for url_patttern, static_file_handler_settings \
                 in self.static_file_handler_definitions:
 
             self.app.add_handlers(
-                    ".*$",
-                    [(url_patttern,
-                      StaticFileHandler,
-                      static_file_handler_settings)])
+                ".*$",
+                [(url_patttern,
+                  StaticFileHandler,
+                  static_file_handler_settings)])
 
         self.is_builded = True
 
@@ -362,19 +364,19 @@ class FlaskyApp(object):
         as a dictionary which will be injected to dynamic handler.
         """
         return host, [
-                (endpoint,
-                 DynamicHandler,
-                 dict(
-                     endpoint_definition=endpoint_definition,
-                     endpoint=endpoint,
-                     after_request_funcs=self.after_request_funcs,
-                     error_handler_funcs=self.error_handlers,
-                     before_request_funcs=self.before_request_funcs,
-                     run_in_executor=self.run_in_executor,
-                     teardown_request_funcs=self.teardown_request_funcs,
-                     app_ctx=app_ctx
-                     )
-                 )]
+            (endpoint,
+             DynamicHandler,
+             dict(
+                 endpoint_definition=endpoint_definition,
+                 endpoint=endpoint,
+                 after_request_funcs=self.after_request_funcs,
+                 error_handler_funcs=self.error_handlers,
+                 before_request_funcs=self.before_request_funcs,
+                 run_in_executor=self.run_in_executor,
+                 teardown_request_funcs=self.teardown_request_funcs,
+                 app_ctx=app_ctx
+             )
+             )]
 
     def _build_app_ctx(self):
         """Creates application context object.
@@ -406,7 +408,8 @@ class FlaskyApp(object):
     def run_in_executor(self, func, *args):
         """runs given function in another thread.
         """
-        return self.executor.submit(functools.partial(func, *args))
+        return futures.wrap_future(self.executor.submit(functools.partial(func, *args)),
+                                   loop=self.ioloop.asyncio_loop)
 
     def add_tornado_handler(self, host_pattern, host_handlers):
         """ To add any handler which extends

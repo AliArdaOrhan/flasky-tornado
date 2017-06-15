@@ -43,8 +43,8 @@ class ResolvableParameter(object):
 
         if typ not in {str, bool, float, int, list, set}:
             raise ConfigurationError(
-                    "Parameter<{}> type must be in bool, str, int, float"
-                    .format(parameter_name))
+                "Parameter<{}> type must be in bool, str, int, float"
+                .format(parameter_name))
 
         self.parameter_name = parameter_name
         self.is_required = is_required
@@ -59,8 +59,8 @@ class ResolvableParameter(object):
 
         if self.is_required:
             raise ParameterRequiredError(
-                    "Parameter-{}- is required but not exists."
-                    .format(self.parameter_name))
+                "Parameter-{}- is required but not exists."
+                .format(self.parameter_name))
 
         return None
 
@@ -95,6 +95,7 @@ class CollectionQueryParameter(ResolvableParameter):
             return vals if not self.mapper else [self.mapper(val) for val in vals]
 
         return self.default if self.default else None
+
 
 class BodyArgument(ResolvableParameter):
 
@@ -131,21 +132,21 @@ class JSONPathArgument(object):
         self.default = default
         self.parameter_path = path
         self.mapper = mapper
-        
-        if self.parameter_path and  "." in self.parameter_path:
+
+        if self.parameter_path and "." in self.parameter_path:
             self.splitted = [
-                                path
-                                for path in self.parameter_path.split(".")
-                                if path.strip() != ""
-                            ]
+                path
+                for path in self.parameter_path.split(".")
+                if path.strip() != ""
+            ]
         elif self.parameter_path is not None:
             self.splitted = [self.parameter_path]
-        
+
     def resolve(self, handler):
         body = self._get_json(handler)
         if not body:
             return self._handle_none_body()
-        
+
         if not self.parameter_path:
             return body
 
@@ -156,12 +157,11 @@ class JSONPathArgument(object):
                     return self.default
                 if self.is_required:
                     raise ParameterRequiredError("Parameter<{}> is required but not found."
-                            .format(self.parameter_name))
+                                                 .format(self.parameter_name))
                 return None
             val = val[key]
 
         return self.mapper(val) if self.mapper else val
-
 
     def _handle_none_body(self):
         if self.default is not None:
@@ -171,18 +171,11 @@ class JSONPathArgument(object):
             return None
 
         raise ParameterRequiredError("JsonBody parameter<path={}> is required but body was none."
-                    .format(self.parameter_path))
-
-
+                                     .format(self.parameter_path))
 
     def _get_json(self, handler):
         try:
             body = handler.body_as_json(throw_exc=True)
-            return handler.body_as_json()
+            return body
         except json.JSONDecodeError:
             return None
-
-
-
-
-

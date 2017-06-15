@@ -40,9 +40,9 @@ class TestCache(AsyncTestCase):
 
     def test_is_running_should_return_false(self):
         cache = Cache(
-                "test", lambda: {}, 1000,
-                ioloop=unittest.mock.MagicMock(),
-                app=unittest.mock.MagicMock())
+            "test", lambda: {}, 1000,
+            ioloop=unittest.mock.MagicMock(),
+            app=unittest.mock.MagicMock())
 
         self.assertFalse(cache.is_running())
 
@@ -53,10 +53,10 @@ class TestCache(AsyncTestCase):
 
         mock_func.return_value = periodic_callback_mock
         cache = Cache(
-                "test", cache_loader_func_mock, 1000,
-                run_immediate=True,
-                ioloop=unittest.mock.MagicMock(),
-                app=unittest.mock.MagicMock())
+            "test", cache_loader_func_mock, 1000,
+            run_immediate=True,
+            ioloop=unittest.mock.MagicMock(),
+            app=unittest.mock.MagicMock())
 
         cache.run()
         periodic_callback_mock.start.assert_any_call()
@@ -70,16 +70,16 @@ class TestCache(AsyncTestCase):
             return {"test": "value"}
 
         cache = Cache(
-                "test", lambda: {}, 1000,
-                ioloop=unittest.mock.MagicMock(),
-                app=unittest.mock.MagicMock())
+            "test", lambda: {}, 1000,
+            ioloop=unittest.mock.MagicMock(),
+            app=unittest.mock.MagicMock())
 
         wrapped = cache._wrap_func(test)
         await wrapped()
 
         self.assertEquals(cache.stats["total_run_count"], 1)
         self.assertEquals(
-                type(cache.stats["last_run_time"]), datetime.datetime)
+            type(cache.stats["last_run_time"]), datetime.datetime)
         self.assertEquals(cache.stats["last_item_count"], 1)
         self.assertNotEquals(cache.stats["last_run_duration"], 0)
         self.assertNotEquals(cache.stats["overall_duration"], 0)

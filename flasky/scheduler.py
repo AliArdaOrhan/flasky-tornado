@@ -22,11 +22,11 @@ class Scheduler(object):
             job_name = name if name else f.__name__
 
             self.job_definitions.append(
-                    {
-                        "func": f,
-                        "interval": interval,
-                        "name": job_name
-                     })
+                {
+                    "func": f,
+                    "interval": interval,
+                    "name": job_name
+                })
             return f
         return wrapper
 

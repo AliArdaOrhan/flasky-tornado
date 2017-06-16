@@ -41,7 +41,7 @@ class ResolvableParameter(object):
         if parameter_name is None:
             raise ConfigurationError('Parameter name must not be None...')
 
-        if typ not in {str, bool, float, int, list, set}:
+        if typ not in {str, bool, float, int, list, set, callable}:
             raise ConfigurationError(
                     "Parameter<{}> type must be in bool, str, int, float"
                     .format(parameter_name))

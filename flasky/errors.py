@@ -24,8 +24,11 @@ class ResourceNotFoundError(FlaskyTornError):
 
 class ResourceAlreadyExistsError(FlaskyTornError):
 
-    def __init__(self, message="Resource is already exists.", reason=None):
-        super().__init__(status_code=409, message=message, reason=reason)
+    def __init__(self, message="Resource is already exists.", err_code="errors.resourceAlreadyExists",
+                 collection=None, key=None):
+        super().__init__(status_code=409, message=message, reason=reason, err_code=err_code)
+        self.collection = collection
+        self.key = key
 
 
 class ConfigurationError(FlaskyTornError):

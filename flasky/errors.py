@@ -7,16 +7,17 @@ logger = logging.getLogger("flasky.errors")
 class FlaskyTornError(BaseException):
 
     def __init__(self, status_code=None, err_code=None, message=None, reason=None, context=None):
-        self.status_code = status_code
         self.err_code = err_code or "errors.InternalError"
         self.message = message
         self.reason = reason
         self.context = context
+        self.status_code = status_code
 
 
 class ResourceNotFoundError(FlaskyTornError):
 
-    def __init__(self, message='Resource not found', reason=None, err_code="errors.resourceNotFound"):
+    def __init__(self, message='Resource not found', reason=None,
+                 err_code="errors.resourceNotFound", context=None):
         super().__init__(status_code=404,
                          message=message,
                          reason=reason,

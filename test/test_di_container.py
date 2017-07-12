@@ -56,7 +56,7 @@ class DIContainerTest(AsyncTestCase):
             return {}
 
         try:
-            await container.get("service")
+            await container.get("services")
         except ConfigurationError:
             self.assertTrue(True)
             return
